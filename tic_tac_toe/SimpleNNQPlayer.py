@@ -75,17 +75,6 @@ class NNQPlayer(Player):
         self.next_max_log.clear()
         self.q_log.clear()
 
-    def calculate_targets(self):
-        game_length = len(self.action_log)
-        targets = []
-
-        for i in range(game_length):
-            target = np.copy(self.q_log[i])
-            target[self.action_log[i]] = self.reward_discount * self.next_max_log[i]
-            targets.append(target)
-
-        return np.array(targets, dtype=np.float32)
-
     def get_probs(self, input_pos: np.ndarray):
         with torch.no_grad():
             x = torch.tensor(input_pos, dtype=torch.float32).unsqueeze(0)
@@ -141,3 +130,15 @@ class NNQPlayer(Player):
         targets_tensor = torch.tensor(targets, dtype=torch.float32)
 
         self.nn.train_step(inputs_tensor, targets_tensor)
+
+    def calculate_targets(self):
+        game_length = len(self.action_log)
+        targets = []
+
+        for i in range(game_length):
+            target = np.copy(self.q_log[i])
+            target[self.action_log[i]] = self.reward_discount * self.next_max_log[i]
+            targets.append(target)
+
+        return np.array(targets, dtype=np.float32)
+
