@@ -78,17 +78,14 @@ class NNQPlayer(Player):
         self.next_value_log.clear()
         self.q_log.clear()
 
-    def get_probs(self, nn_input: torch.Tensor):
-        with torch.no_grad():
-            qvalues = self.nn(nn_input.unsqueeze(0))[0]
-            probs = torch.softmax(qvalues, dim=0)
-        return probs, qvalues
-
     def move(self, board: Board):
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
 
-        probs, qvalues = self.get_probs(state_tensor)
+        with torch.no_grad():
+            qvalues = self.nn(state_tensor.unsqueeze(0))[0]
+            probs = torch.softmax(qvalues, dim=0)
+
         q_copy = qvalues.clone()
 
         for index in range(len(qvalues)):
