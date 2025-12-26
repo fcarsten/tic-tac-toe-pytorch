@@ -30,7 +30,7 @@ class QNetwork(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-    def train_step(self, inputs, targets):
+    def train_batch(self, inputs, targets):
         self.optimizer.zero_grad()
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
@@ -129,4 +129,4 @@ class NNQPlayer(Player):
         inputs = torch.stack(self.state_log).to(device)
         targets = torch.stack(targets).to(device)
 
-        self.nn.train_step(inputs, targets)
+        self.nn.train_batch(inputs, targets)
