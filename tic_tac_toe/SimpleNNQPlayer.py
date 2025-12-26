@@ -61,26 +61,26 @@ class NNQPlayer(Player):
         self.training = training
 
         self.side = None
-        self.board_position_log = []
+        self.state_log = []
         self.action_log = []
         self.next_max_log = []
-        self.values_log = []
+        self.q_log = []
 
         self.nn = QNetwork(learning_rate)
 
     def new_game(self, side: int):
         self.side = side
-        self.board_position_log.clear()
+        self.state_log.clear()
         self.action_log.clear()
         self.next_max_log.clear()
-        self.values_log.clear()
+        self.q_log.clear()
 
     def calculate_targets(self):
         game_length = len(self.action_log)
         targets = []
 
         for i in range(game_length):
-            target = np.copy(self.values_log[i])
+            target = np.copy(self.q_log[i])
             target[self.action_log[i]] = self.reward_discount * self.next_max_log[i]
             targets.append(target)
 
@@ -95,7 +95,7 @@ class NNQPlayer(Player):
         return probs, qvals
 
     def move(self, board: Board):
-        self.board_position_log.append(board.state.copy())
+        self.state_log.append(board.state.copy())
 
         nn_input = self.board_state_to_nn_input(board.state)
         probs, qvalues = self.get_probs(nn_input)
@@ -111,7 +111,7 @@ class NNQPlayer(Player):
             self.next_max_log.append(qvalues[move])
 
         self.action_log.append(move)
-        self.values_log.append(qvalues)
+        self.q_log.append(qvalues)
 
         _, res, finished = board.move(move, self.side)
         return res, finished
@@ -133,7 +133,7 @@ class NNQPlayer(Player):
         if not self.training:
             return
 
-        inputs = np.array([self.board_state_to_nn_input(x) for x in self.board_position_log],
+        inputs = np.array([self.board_state_to_nn_input(x) for x in self.state_log],
                           dtype=np.float32)
         targets = self.calculate_targets()
 
