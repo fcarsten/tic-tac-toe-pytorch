@@ -82,23 +82,27 @@ class NNQPlayer(Player):
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
 
+        # Forward pass (training version with gradients)
+        q_training = self.nn(state_tensor.unsqueeze(0))[0]
+        self.q_log.append(q_training)
+
+        # Forward pass without gradients for action selection
         with torch.no_grad():
-            qvalues = self.nn(state_tensor.unsqueeze(0))[0]
+            qvalues = q_training.clone()
             probs = torch.softmax(qvalues, dim=0)
 
-        q_copy = qvalues.clone()
+            # Mask illegal moves in probabilities only
+            for i in range(BOARD_SIZE):
+                if not board.is_legal(i):
+                    probs[i] = -1.0
 
-        for index in range(len(qvalues)):
-            if not board.is_legal(index):
-                probs[index] = -1.0
+            move = int(torch.argmax(probs).item())
 
-        move = int(torch.argmax(probs).item())
-
+        # Log the next state's Q max for Q-learning update
         if self.action_log:
-            self.next_value_log.append(q_copy[move].item())
+            self.next_value_log.append(qvalues[move].item())
 
         self.action_log.append(move)
-        self.q_log.append(q_copy)
 
         _, res, finished = board.move(move, self.side)
         return res, finished
@@ -117,13 +121,17 @@ class NNQPlayer(Player):
 
         self.next_value_log.append(reward)
 
-        targets = []
-        for i, qvalues in enumerate(self.q_log):
-            target = qvalues.clone().detach()
-            target[self.action_log[i]] = self.reward_discount * self.next_value_log[i]
-            targets.append(target)
+        # Convert stored data into tensors
+        states = torch.stack(self.state_log).to(device)
+        q_pred = torch.stack(self.q_log).to(device)
+        targets = q_pred.clone().detach()
 
-        inputs = torch.stack(self.state_log).to(device)
-        targets = torch.stack(targets).to(device)
+        # Apply Q-learning update: batch
+        actions = torch.tensor(self.action_log, device=device)
+        next_vals = torch.tensor(self.next_value_log, device=device)
 
-        self.nn.train_batch(inputs, targets)
+        # targets[i, action_i] = gamma * next_value[i]
+        targets[torch.arange(len(actions)), actions] = \
+            self.reward_discount * next_vals
+
+        self.nn.train_batch(states, targets)
