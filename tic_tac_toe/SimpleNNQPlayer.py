@@ -66,7 +66,7 @@ class NNQPlayer(Player):
         self.side = None
         self.state_log = []
         self.action_log = []
-        self.next_max_log = []
+        self.next_value_log = []
         self.q_log = []
 
         self.nn = QNetwork(learning_rate)
@@ -75,7 +75,7 @@ class NNQPlayer(Player):
         self.side = side
         self.state_log.clear()
         self.action_log.clear()
-        self.next_max_log.clear()
+        self.next_value_log.clear()
         self.q_log.clear()
 
     def get_probs(self, nn_input: torch.Tensor):
@@ -98,7 +98,7 @@ class NNQPlayer(Player):
         move = int(torch.argmax(probs).item())
 
         if self.action_log:
-            self.next_max_log.append(q_copy[move].item())
+            self.next_value_log.append(q_copy[move].item())
 
         self.action_log.append(move)
         self.q_log.append(q_copy)
@@ -118,12 +118,12 @@ class NNQPlayer(Player):
         else:
             reward = self.loss_value
 
-        self.next_max_log.append(reward)
+        self.next_value_log.append(reward)
 
         targets = []
         for i, qvalues in enumerate(self.q_log):
             target = qvalues.clone().detach()
-            target[self.action_log[i]] = self.reward_discount * self.next_max_log[i]
+            target[self.action_log[i]] = self.reward_discount * self.next_value_log[i]
             targets.append(target)
 
         inputs = torch.stack(self.state_log).to(device)
