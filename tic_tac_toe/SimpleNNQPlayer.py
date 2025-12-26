@@ -106,6 +106,9 @@ class NNQPlayer(Player):
         return res, finished
 
     def final_result(self, result: GameResult):
+        if not self.training:
+            return
+
         if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
            (result == GameResult.CROSS_WIN and self.side == CROSS):
             reward = self.win_value
@@ -119,19 +122,9 @@ class NNQPlayer(Player):
 
         self.next_max_log.append(reward)
 
-        if not self.training:
-            return
-
         inputs = np.array([self.board_state_to_nn_input(x) for x in self.state_log],
                           dtype=np.float32)
-        targets = self.calculate_targets()
 
-        inputs_tensor = torch.tensor(inputs, dtype=torch.float32)
-        targets_tensor = torch.tensor(targets, dtype=torch.float32)
-
-        self.nn.train_step(inputs_tensor, targets_tensor)
-
-    def calculate_targets(self):
         game_length = len(self.action_log)
         targets = []
 
@@ -140,5 +133,9 @@ class NNQPlayer(Player):
             target[self.action_log[i]] = self.reward_discount * self.next_max_log[i]
             targets.append(target)
 
-        return np.array(targets, dtype=np.float32)
+        targets =  np.array(targets, dtype=np.float32)
 
+        inputs_tensor = torch.tensor(inputs, dtype=torch.float32)
+        targets_tensor = torch.tensor(targets, dtype=torch.float32)
+
+        self.nn.train_step(inputs_tensor, targets_tensor)
