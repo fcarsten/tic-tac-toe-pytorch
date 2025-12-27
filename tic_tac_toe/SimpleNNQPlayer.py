@@ -34,10 +34,10 @@ class QNetwork(nn.Module):
         if not writer:
             return
 
-        for name, param in self.model.named_parameters():
-            writer.add_histogram(f'{name}/Weights/{name}', param, game_number)
+        for n, param in self.model.named_parameters():
+            writer.add_histogram(f'{name}/Weights/{n}', param, game_number)
             if param.grad is not None:
-                writer.add_histogram(f'{name}/Gradients/{name}', param.grad, game_number)
+                writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
     def train_batch(self, inputs, targets, writer=None, name = None, game_number=None):
         self.optimizer.zero_grad()
