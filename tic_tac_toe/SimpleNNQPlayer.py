@@ -29,11 +29,24 @@ class QNetwork(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-    def train_batch(self, inputs, targets):
+    def log_weights(self, writer=None, name=None, game_number=None):
+        """Logs histograms of weights and biases for all layers."""
+        if not writer:
+            return
+
+        for name, param in self.model.named_parameters():
+            writer.add_histogram(f'{name}/Weights/{name}', param, game_number)
+            if param.grad is not None:
+                writer.add_histogram(f'{name}/Gradients/{name}', param.grad, game_number)
+
+    def train_batch(self, inputs, targets, writer=None, name = None, game_number=None):
         self.optimizer.zero_grad()
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
+
+        self.log_weights(writer, name, game_number)
+
         self.optimizer.step()
         return loss.item()  # Return loss for logging
 
@@ -72,7 +85,9 @@ class NNQPlayer(Player):
         self.loss_value = loss_value
         self.training = training
 
-        self.training_steps = 0  # To track global steps in TensorBoard
+        self.game_number = 0
+        self.move_step = 0
+
         self.side = None
         self.state_log = []
         self.action_log = []
@@ -88,6 +103,8 @@ class NNQPlayer(Player):
             self.writer.add_graph(self.nn.model, dummy_input)
 
     def new_game(self, side: int):
+        self.game_number = self.game_number + 1
+
         self.side = side
         self.state_log.clear()
         self.action_log.clear()
@@ -118,11 +135,11 @@ class NNQPlayer(Player):
                 q_values = self.nn(fixed_input)[0]
                 max_q = torch.max(q_values).item()
                 # This should trend toward 0.0 as the model realizes the game is a draw
-                self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.training_steps)
+                self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.game_number)
 
     def log_q_heatmap(self, q_values, step):
         """Logs a 3x3 heatmap of Q-values to TensorBoard."""
-        if not self.writer or self.training_steps % 500 != 0:
+        if not self.writer or step % 500 != 0:
             return
 
         # 1. Prepare the data: Reshape the 9 Q-values into a 3x3 grid
@@ -143,42 +160,41 @@ class NNQPlayer(Player):
         # Optional: Close the figure to free up memory
         plt.close(fig)
 
-    def log_weights(self):
-        """Logs histograms of weights and biases for all layers."""
-        if not self.writer:
-            return
-
-        for name, param in self.nn.model.named_parameters():
-            self.writer.add_histogram(f'{self.name}/Weights/{name}', param, self.training_steps)
-            if param.grad is not None:
-                self.writer.add_histogram(f'{self.name}/Gradients/{name}', param.grad, self.training_steps)
-
     def move(self, board: Board):
+        self.move_step += 1
+
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
 
-        q_training = self.nn(state_tensor.unsqueeze(0))[0]
-        self.q_log.append(q_training)
-
-        # Log Average Max Q-value for this game's states
-        if self.writer and self.training and self.training_steps % 100 == 0:
-            self.log_q_heatmap(q_training, self.training_steps)
-            self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_training, self.training_steps)
-            max_q = torch.max(q_training).item()
-            self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.training_steps)
-            avg_q = torch.mean(q_training).item()
-            self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.training_steps)
-            self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.training_steps)
-
+        # Inference only, no graph
         with torch.no_grad():
-            qvalues = q_training.clone()
-            probs = torch.softmax(qvalues, dim=0)
-            occupied_mask = torch.tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
-            probs[occupied_mask] = -1.0
-            move = int(torch.argmax(probs).item())
+            q_training = self.nn(state_tensor.unsqueeze(0))[0]
+
+        # Detached copy stored on the training device
+        q_values = q_training.detach().clone()
+        self.q_log.append(q_values)
+
+        # Move-level logging (use q_values for logging)
+        if self.writer and self.training and self.move_step % 100 == 0:
+            # Ensure log_q_heatmap uses the passed step (or call a version that accepts step)
+            self.log_q_heatmap(q_values, self.move_step)
+            # Use detached CPU for writer histograms
+            self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
+            max_q = float(torch.max(q_values).item())
+            avg_q = float(torch.mean(q_values).item())
+            self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
+
+        # Choose move by masking logits (not softmax outputs)
+        with torch.no_grad():
+            occupied_mask = torch.as_tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
+            logits = q_values.clone()
+            logits[occupied_mask] = -float('inf')
+            move = int(torch.argmax(logits).item())
 
         if self.action_log:
-            self.next_value_log.append(qvalues[move].item())
+            self.next_value_log.append(q_values[move].item())
 
         self.action_log.append(move)
         _, res, finished = board.move(move, self.side)
@@ -208,10 +224,9 @@ class NNQPlayer(Player):
 
         targets[torch.arange(len(actions)), actions] = self.reward_discount * next_vals
 
-        loss = self.nn.train_batch(states, targets)
+        loss = self.nn.train_batch(states, targets, writer=self.writer, name= self.name, game_number=self.game_number)
 
         # Log Loss to TensorBoard
         if self.writer:
-            self.writer.add_scalar(f'{self.name}/Loss', loss, self.training_steps)
+            self.writer.add_scalar(f'{self.name}/Loss', loss, self.game_number)
 
-        self.training_steps += 1
