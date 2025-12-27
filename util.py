@@ -42,7 +42,7 @@ def play_game(board: Board, player1: Player, player2: Player):
     return final_result
 
 
-def battle(player1: Player, player2: Player, num_games: int = 100000, silent: bool = False):
+def evaluate_batch(player1: Player, player2: Player, num_games: int = 100000, silent: bool = False):
     board = Board()
     draw_count = 0
     cross_count = 0
@@ -67,7 +67,7 @@ def battle(player1: Player, player2: Player, num_games: int = 100000, silent: bo
     return cross_count, naught_count, draw_count
 
 
-def evaluate_players(p1: Player, p2: Player, games_per_battle=100, num_battles=100,
+def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num_evaluation_batchs=100,
                      writer=None, silent: bool = False):
     p1_wins = []
     p2_wins = []
@@ -75,8 +75,8 @@ def evaluate_players(p1: Player, p2: Player, games_per_battle=100, num_battles=1
     game_number = []
     game_counter = 0
 
-    for i in range(num_battles):
-        p1win, p2win, draw = battle(p1, p2, games_per_battle, silent)
+    for i in range(num_evaluation_batchs):
+        p1win, p2win, draw = evaluate_batch(p1, p2, games_per_evaluation_batch, silent)
         p1_wins.append(p1win)
         p2_wins.append(p2win)
         draws.append(draw)

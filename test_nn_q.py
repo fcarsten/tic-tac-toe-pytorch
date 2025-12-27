@@ -3,7 +3,7 @@ import torch
 from tic_tac_toe import RndMinMaxAgent
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
 from tic_tac_toe.RandomPlayer import RandomPlayer
-from util import print_board, play_game, battle
+from util import print_board, play_game, evaluate_batch
 # from tic_tac_toe.RandomPlayer import RandomPlayer
 from tic_tac_toe.MinMaxAgent import MinMaxAgent
 from tic_tac_toe.RndMinMaxAgent import RndMinMaxAgent
@@ -30,9 +30,9 @@ draws = []
 game_number = []
 game_counter = 0
 
-num_battles = 10
-games_per_battle = 100
-num_training_battles = 100
+num_evaluation_batchs = 10
+games_per_evaluation_batch = 100
+num_training_evaluation_batchs = 100
 
 writer = None  # tf.summary.FileWriter('log', TFSessionManager.get_session().graph)
 
@@ -46,8 +46,8 @@ p2 = p2_t
 # nnplayer.training= False
 # nnplayer2.training= False
 
-for i in range(num_training_battles):
-    p1win, p2win, draw = battle(p1_t, p2_t, games_per_battle, False)
+for i in range(num_training_evaluation_batchs):
+    p1win, p2win, draw = evaluate_batch(p1_t, p2_t, games_per_evaluation_batch, False)
     p1_wins.append(p1win)
     p2_wins.append(p2win)
     draws.append(draw)
@@ -57,8 +57,8 @@ for i in range(num_training_battles):
 # nnplayer.training= False
 # nnplayer2.training= False
 
-for i in range(num_battles):
-    p1win, p2win, draw = battle(p1, p2, games_per_battle, False)
+for i in range(num_evaluation_batchs):
+    p1win, p2win, draw = evaluate_batch(p1, p2, games_per_evaluation_batch, False)
     p1_wins.append(p1win)
     p2_wins.append(p2win)
     draws.append(draw)
