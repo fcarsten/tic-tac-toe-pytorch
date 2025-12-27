@@ -6,20 +6,14 @@ import torch.optim as optim
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
 
-# OPTIMIZATION 1: Force CPU.
-# Small networks (like this 27->243->9) run faster on CPU due to lack of PCIe transfer latency.
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
-
-
 class QNetwork(nn.Module):
     """
     PyTorch version of the Q-network.
     """
 
-    def __init__(self, learning_rate: float):
+    def __init__(self, learning_rate: float, device: torch.device):
         super().__init__()
-
+        self.device = device
         self.model = nn.Sequential(
             nn.Linear(BOARD_SIZE * 3, BOARD_SIZE * 3 * 9),
             nn.ReLU(),
@@ -46,13 +40,8 @@ class NNQPlayer(Player):
     """
 
     def board_state_to_nn_input(self, state: np.ndarray) -> torch.Tensor:
-        """
-        OPTIMIZATION 2: Efficient Tensor Construction.
-        Converts board state to tensor without intermediate list/numpy thrashing.
-        Maintains original structure: [9x(is_me), 9x(is_other), 9x(is_empty)]
-        """
         # Convert numpy state directly to tensor once
-        t_state = torch.as_tensor(state, device=device)
+        t_state = torch.as_tensor(state, device=self.device)
 
         other_side = Board.other_side(self.side)
 
@@ -67,8 +56,9 @@ class NNQPlayer(Player):
     def __init__(self, name: str, reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
                  loss_value: float = -1.0, learning_rate: float = 0.01,
-                 training: bool = True):
+                 training: bool = True, device: torch.device = torch.device("cpu")):
         super().__init__()
+        self.device = device
         self.name = name
         self.reward_discount = reward_discount
         self.win_value = win_value
@@ -82,7 +72,7 @@ class NNQPlayer(Player):
         self.next_value_log = []
         self.q_log = []
 
-        self.nn = QNetwork(learning_rate)
+        self.nn = QNetwork(learning_rate, device)
 
     def new_game(self, side: int):
         self.side = side
@@ -107,7 +97,7 @@ class NNQPlayer(Player):
             # OPTIMIZATION 3: Vectorized masking.
             # Instead of a python loop calling is_legal(i) 9 times, we use a boolean mask.
             # board.state != EMPTY implies the spot is occupied (illegal).
-            occupied_mask = torch.tensor(board.state != EMPTY, device=device, dtype=torch.bool)
+            occupied_mask = torch.tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
 
             # Set occupied spots to -1.0 so argmax avoids them
             probs[occupied_mask] = -1.0
@@ -139,13 +129,13 @@ class NNQPlayer(Player):
 
         # Convert stored data into tensors
         # Note: Since we are already on CPU, this is just a stack operation
-        states = torch.stack(self.state_log).to(device)
-        q_pred = torch.stack(self.q_log).to(device)
+        states = torch.stack(self.state_log)
+        q_pred = torch.stack(self.q_log)
         targets = q_pred.clone().detach()
 
         # Apply Q-learning update: batch
-        actions = torch.tensor(self.action_log, device=device)
-        next_vals = torch.tensor(self.next_value_log, device=device)
+        actions = torch.tensor(self.action_log, device=self.device)
+        next_vals = torch.tensor(self.next_value_log, device=self.device)
 
         # targets[i, action_i] = gamma * next_value[i]
         targets[torch.arange(len(actions)), actions] = \

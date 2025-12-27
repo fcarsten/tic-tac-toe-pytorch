@@ -1,3 +1,5 @@
+import torch
+
 from tic_tac_toe import RndMinMaxAgent
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
 from tic_tac_toe.RandomPlayer import RandomPlayer
@@ -9,11 +11,14 @@ from tic_tac_toe.RndMinMaxAgent import RndMinMaxAgent
 from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
 import matplotlib.pyplot as plt
 
-board = Board()
-nnplayer = NNQPlayer("QLearner1")
-nnplayer2 = NNQPlayer("QLearner2")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
-deep_nnplayer = NNQPlayer("DeepQLearner1")
+board = Board()
+nnplayer = NNQPlayer("QLearner1", device= device)
+nnplayer2 = NNQPlayer("QLearner2", device= device)
+
+deep_nnplayer = NNQPlayer("DeepQLearner1", device= device)
 
 rndplayer = RandomPlayer()
 mm_player = RndMinMaxAgent()
@@ -27,13 +32,13 @@ game_counter = 0
 
 num_battles = 10
 games_per_battle = 100
-num_training_battles = 1000
+num_training_battles = 100
 
 writer = None  # tf.summary.FileWriter('log', TFSessionManager.get_session().graph)
 
 # nnplayer rndplayer mm_player
-p1_t = mm_player
-p2_t = deep_nnplayer
+p2_t = nnplayer
+p1_t = nnplayer2
 
 p1 = p1_t
 p2 = p2_t
@@ -59,9 +64,6 @@ for i in range(num_battles):
     draws.append(draw)
     game_counter = game_counter + 1
     game_number.append(game_counter)
-
-if writer is not None:
-    writer.close()
 
 p = plt.plot(game_number, draws, 'r-', game_number, p1_wins, 'g-', game_number, p2_wins, 'b-')
 
