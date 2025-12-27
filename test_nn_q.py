@@ -1,4 +1,5 @@
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe import RndMinMaxAgent
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
@@ -14,11 +15,13 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
-board = Board()
-nnplayer = NNQPlayer("QLearner1", device= device)
-nnplayer2 = NNQPlayer("QLearner2", device= device)
+writer = SummaryWriter('runs/tic_tac_toe_experiment_1')
 
-deep_nnplayer = NNQPlayer("DeepQLearner1", device= device)
+board = Board()
+nnplayer = NNQPlayer("QLearner1", device= device, writer=writer)
+nnplayer2 = NNQPlayer("QLearner2", device= device, writer=writer)
+
+deep_nnplayer = NNQPlayer("DeepQLearner1", device= device, writer=writer)
 
 rndplayer = RandomPlayer()
 mm_player = RndMinMaxAgent()
@@ -34,8 +37,6 @@ num_evaluation_batchs = 10
 games_per_evaluation_batch = 100
 num_training_evaluation_batchs = 100
 
-writer = None  # tf.summary.FileWriter('log', TFSessionManager.get_session().graph)
-
 # nnplayer rndplayer mm_player
 p2_t = nnplayer
 p1_t = nnplayer2
@@ -47,12 +48,15 @@ p2 = p2_t
 # nnplayer2.training= False
 
 for i in range(num_training_evaluation_batchs):
-    p1win, p2win, draw = evaluate_batch(p1_t, p2_t, games_per_evaluation_batch, False)
+    p1win, p2win, draw = evaluate_batch(p1_t, p2_t, games_per_evaluation_batch, False
+                                        , writer=writer, epoch=i)
     p1_wins.append(p1win)
     p2_wins.append(p2win)
     draws.append(draw)
     game_counter = game_counter + 1
     game_number.append(game_counter)
+
+writer.close()
 
 # nnplayer.training= False
 # nnplayer2.training= False

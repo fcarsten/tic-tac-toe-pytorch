@@ -1,4 +1,6 @@
 from IPython.display import HTML, display
+from torch.utils.tensorboard import SummaryWriter
+
 from tic_tac_toe.Player import Player
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT
 
@@ -42,7 +44,8 @@ def play_game(board: Board, player1: Player, player2: Player):
     return final_result
 
 
-def evaluate_batch(player1: Player, player2: Player, num_games: int = 100000, silent: bool = False):
+def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
+                   silent: bool = False, writer: SummaryWriter = None, epoch: int = 0):
     board = Board()
     draw_count = 0
     cross_count = 0
@@ -55,6 +58,16 @@ def evaluate_batch(player1: Player, player2: Player, num_games: int = 100000, si
             naught_count += 1
         else:
             draw_count += 1
+
+    # Calculate percentages
+    p1_win_pct = cross_count / num_games
+    p2_win_pct = naught_count / num_games
+    draw_pct = draw_count / num_games
+
+    if writer:
+        writer.add_scalar('Batch/P1_Win_Rate', p1_win_pct, epoch)
+        writer.add_scalar('Batch/P2_Win_Rate', p2_win_pct, epoch)
+        writer.add_scalar('Batch/Draw_Rate', draw_pct, epoch)
 
     if not silent:
         print("After {} game we have draws: {}, Player 1 wins: {}, and Player 2 wins: {}.".format(num_games, draw_count,

@@ -2,15 +2,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter  # Added
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
 
-class QNetwork(nn.Module):
-    """
-    PyTorch version of the Q-network.
-    """
 
+class QNetwork(nn.Module):
     def __init__(self, learning_rate: float, device: torch.device):
         super().__init__()
         self.device = device
@@ -32,6 +30,7 @@ class QNetwork(nn.Module):
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
         self.optimizer.step()
+        return loss.item()  # Return loss for logging
 
 
 class NNQPlayer(Player):
@@ -56,16 +55,19 @@ class NNQPlayer(Player):
     def __init__(self, name: str, reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
                  loss_value: float = -1.0, learning_rate: float = 0.01,
-                 training: bool = True, device: torch.device = torch.device("cpu")):
+                 training: bool = True, device: torch.device = torch.device("cpu"),
+                 writer: SummaryWriter = None):  # Added writer
         super().__init__()
         self.device = device
         self.name = name
+        self.writer = writer
         self.reward_discount = reward_discount
         self.win_value = win_value
         self.draw_value = draw_value
         self.loss_value = loss_value
         self.training = training
 
+        self.training_steps = 0  # To track global steps in TensorBoard
         self.side = None
         self.state_log = []
         self.action_log = []
@@ -85,31 +87,25 @@ class NNQPlayer(Player):
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
 
-        # Forward pass (training version with gradients)
         q_training = self.nn(state_tensor.unsqueeze(0))[0]
         self.q_log.append(q_training)
 
-        # Forward pass without gradients for action selection
+        # Log Average Max Q-value for this game's states
+        if self.writer and self.training:
+            max_q = torch.max(q_training).item()
+            self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.training_steps)
+
         with torch.no_grad():
             qvalues = q_training.clone()
             probs = torch.softmax(qvalues, dim=0)
-
-            # OPTIMIZATION 3: Vectorized masking.
-            # Instead of a python loop calling is_legal(i) 9 times, we use a boolean mask.
-            # board.state != EMPTY implies the spot is occupied (illegal).
             occupied_mask = torch.tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
-
-            # Set occupied spots to -1.0 so argmax avoids them
             probs[occupied_mask] = -1.0
-
             move = int(torch.argmax(probs).item())
 
-        # Log the next state's Q max for Q-learning update
         if self.action_log:
             self.next_value_log.append(qvalues[move].item())
 
         self.action_log.append(move)
-
         _, res, finished = board.move(move, self.side)
         return res, finished
 
@@ -117,8 +113,9 @@ class NNQPlayer(Player):
         if not self.training:
             return
 
+        # Determine reward logic ...
         if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
-           (result == GameResult.CROSS_WIN and self.side == CROSS):
+                (result == GameResult.CROSS_WIN and self.side == CROSS):
             reward = self.win_value
         elif result == GameResult.DRAW:
             reward = self.draw_value
@@ -127,18 +124,19 @@ class NNQPlayer(Player):
 
         self.next_value_log.append(reward)
 
-        # Convert stored data into tensors
-        # Note: Since we are already on CPU, this is just a stack operation
         states = torch.stack(self.state_log)
         q_pred = torch.stack(self.q_log)
         targets = q_pred.clone().detach()
 
-        # Apply Q-learning update: batch
         actions = torch.tensor(self.action_log, device=self.device)
         next_vals = torch.tensor(self.next_value_log, device=self.device)
 
-        # targets[i, action_i] = gamma * next_value[i]
-        targets[torch.arange(len(actions)), actions] = \
-            self.reward_discount * next_vals
+        targets[torch.arange(len(actions)), actions] = self.reward_discount * next_vals
 
-        self.nn.train_batch(states, targets)
+        loss = self.nn.train_batch(states, targets)
+
+        # Log Loss to TensorBoard
+        if self.writer:
+            self.writer.add_scalar(f'{self.name}/Loss', loss, self.training_steps)
+
+        self.training_steps += 1
