@@ -18,6 +18,12 @@ class Player(ABC):
         """
         super().__init__()
 
+    def log_weights(self):
+        """
+        Log the weights of the player if applicable
+        """
+        pass
+
     @abstractmethod
     def move(self, board: Board) -> tuple[GameResult, bool]:
         """

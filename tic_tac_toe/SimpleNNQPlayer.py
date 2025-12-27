@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import numpy as np
 import matplotlib.pyplot as plt
 import io
@@ -14,11 +16,12 @@ class QNetwork(nn.Module):
     def __init__(self, learning_rate: float, device: torch.device):
         super().__init__()
         self.device = device
-        self.model = nn.Sequential(
-            nn.Linear(BOARD_SIZE * 3, BOARD_SIZE * 3 * 9),
-            nn.ReLU(),
-            nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE)
-        ).to(device)
+
+        self.model = nn.Sequential(OrderedDict([
+            ('Input_Layer', nn.Linear(BOARD_SIZE * 3, BOARD_SIZE * 3 * 9)),
+            ('Activation_1', nn.ReLU()),
+            ('Output_Layer', nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE))
+        ])).to(device)
 
         self.optimizer = optim.SGD(self.parameters(), lr=learning_rate)
         self.loss_fn = nn.MSELoss()
@@ -78,6 +81,11 @@ class NNQPlayer(Player):
 
         self.nn = QNetwork(learning_rate, device)
 
+        if self.writer:
+            # Create a dummy input matching the shape (Batch, 27)
+            dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
+            self.writer.add_graph(self.nn.model, dummy_input)
+
     def new_game(self, side: int):
         self.side = side
         self.state_log.clear()
@@ -93,7 +101,7 @@ class NNQPlayer(Player):
 
     def log_q_heatmap(self, q_values, step):
         """Logs a 3x3 heatmap of Q-values to TensorBoard."""
-        if not self.writer:
+        if not self.writer or self.training_steps % 500 != 0:
             return
 
         # 1. Prepare the data: Reshape the 9 Q-values into a 3x3 grid
@@ -133,8 +141,7 @@ class NNQPlayer(Player):
 
         # Log Average Max Q-value for this game's states
         if self.writer and self.training:
-            if self.training_steps % 100 == 0:
-                self.log_q_heatmap(q_training, self.training_steps)
+            self.log_q_heatmap(q_training, self.training_steps)
             self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_training, self.training_steps)
             max_q = torch.max(q_training).item()
             self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.training_steps)

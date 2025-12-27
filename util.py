@@ -80,7 +80,7 @@ def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
     return cross_count, naught_count, draw_count
 
 
-def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num_evaluation_batchs=100,
+def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num_evaluation_batches=100,
                      writer=None, silent: bool = False):
     p1_wins = []
     p2_wins = []
@@ -88,7 +88,7 @@ def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num
     game_number = []
     game_counter = 0
 
-    for i in range(num_evaluation_batchs):
+    for i in range(num_evaluation_batches):
         p1win, p2win, draw = evaluate_batch(p1, p2, games_per_evaluation_batch, silent)
         p1_wins.append(p1win)
         p2_wins.append(p2win)
