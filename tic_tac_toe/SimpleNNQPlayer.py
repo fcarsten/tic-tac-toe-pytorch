@@ -6,8 +6,10 @@ import torch.optim as optim
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# OPTIMIZATION 1: Force CPU.
+# Small networks (like this 27->243->9) run faster on CPU due to lack of PCIe transfer latency.
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
 class QNetwork(nn.Module):
@@ -44,12 +46,23 @@ class NNQPlayer(Player):
     """
 
     def board_state_to_nn_input(self, state: np.ndarray) -> torch.Tensor:
-        res = np.array([
-            (state == self.side).astype(np.float32),
-            (state == Board.other_side(self.side)).astype(np.float32),
-            (state == EMPTY).astype(np.float32)
-        ])
-        return torch.tensor(res.reshape(-1), dtype=torch.float32, device=device)
+        """
+        OPTIMIZATION 2: Efficient Tensor Construction.
+        Converts board state to tensor without intermediate list/numpy thrashing.
+        Maintains original structure: [9x(is_me), 9x(is_other), 9x(is_empty)]
+        """
+        # Convert numpy state directly to tensor once
+        t_state = torch.as_tensor(state, device=device)
+
+        other_side = Board.other_side(self.side)
+
+        # Create masks directly in PyTorch
+        is_me = (t_state == self.side).float()
+        is_other = (t_state == other_side).float()
+        is_empty = (t_state == EMPTY).float()
+
+        # Concatenate into the expected (27,) shape
+        return torch.cat([is_me, is_other, is_empty])
 
     def __init__(self, name: str, reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
@@ -91,10 +104,13 @@ class NNQPlayer(Player):
             qvalues = q_training.clone()
             probs = torch.softmax(qvalues, dim=0)
 
-            # Mask illegal moves in probabilities only
-            for i in range(BOARD_SIZE):
-                if not board.is_legal(i):
-                    probs[i] = -1.0
+            # OPTIMIZATION 3: Vectorized masking.
+            # Instead of a python loop calling is_legal(i) 9 times, we use a boolean mask.
+            # board.state != EMPTY implies the spot is occupied (illegal).
+            occupied_mask = torch.tensor(board.state != EMPTY, device=device, dtype=torch.bool)
+
+            # Set occupied spots to -1.0 so argmax avoids them
+            probs[occupied_mask] = -1.0
 
             move = int(torch.argmax(probs).item())
 
@@ -122,6 +138,7 @@ class NNQPlayer(Player):
         self.next_value_log.append(reward)
 
         # Convert stored data into tensors
+        # Note: Since we are already on CPU, this is just a stack operation
         states = torch.stack(self.state_log).to(device)
         q_pred = torch.stack(self.q_log).to(device)
         targets = q_pred.clone().detach()
