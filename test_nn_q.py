@@ -35,14 +35,11 @@ game_counter = 0
 
 num_evaluation_batches = 2
 games_per_evaluation_batch = 100
-num_training_batches = 40
+num_training_batches = 100
 
 # nnplayer rndplayer mm_player
-p2_t = nnplayer
-p1_t = mm_player
-
-p1 = p1_t
-p2 = p2_t
+p1_t = nnplayer
+p2_t = mm_player
 
 for i in range(num_training_batches):
     p1win, p2win, draw = evaluate_batch(p1_t, p2_t, games_per_evaluation_batch, False
@@ -60,6 +57,9 @@ writer.close()
 
 nnplayer.training= False
 nnplayer2.training= False
+
+p1 = p1_t
+p2 = p2_t
 
 for i in range(num_evaluation_batches):
     p1win, p2win, draw = evaluate_batch(p1, p2, games_per_evaluation_batch, False)

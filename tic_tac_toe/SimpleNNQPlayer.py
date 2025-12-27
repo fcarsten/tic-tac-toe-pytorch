@@ -81,6 +81,7 @@ class NNQPlayer(Player):
 
         self.nn = QNetwork(learning_rate, device)
 
+
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
@@ -93,11 +94,31 @@ class NNQPlayer(Player):
         self.next_value_log.clear()
         self.q_log.clear()
 
+        self.log_start_state_q()
     import matplotlib.pyplot as plt
     import io
     import torch
 
     # ... inside NNQPlayer class ...
+
+    def log_start_state_q(self):
+        """
+        Logs the max Q-value of a generic empty board from a 'First Mover' perspective.
+        This provides a consistent baseline even if the player is currently Naught.
+        """
+        if self.writer and self.training:
+            # Create a 'First Mover' perspective empty board:
+            # [9 zeros for 'me', 9 zeros for 'other', 9 ones for 'empty']
+            me = torch.zeros(BOARD_SIZE, device=self.device)
+            other = torch.zeros(BOARD_SIZE, device=self.device)
+            empty = torch.ones(BOARD_SIZE, device=self.device)
+            fixed_input = torch.cat([me, other, empty]).unsqueeze(0)
+
+            with torch.no_grad():
+                q_values = self.nn(fixed_input)[0]
+                max_q = torch.max(q_values).item()
+                # This should trend toward 0.0 as the model realizes the game is a draw
+                self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.training_steps)
 
     def log_q_heatmap(self, q_values, step):
         """Logs a 3x3 heatmap of Q-values to TensorBoard."""
@@ -140,11 +161,14 @@ class NNQPlayer(Player):
         self.q_log.append(q_training)
 
         # Log Average Max Q-value for this game's states
-        if self.writer and self.training:
+        if self.writer and self.training and self.training_steps % 100 == 0:
             self.log_q_heatmap(q_training, self.training_steps)
             self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_training, self.training_steps)
             max_q = torch.max(q_training).item()
             self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.training_steps)
+            avg_q = torch.mean(q_training).item()
+            self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.training_steps)
+            self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.training_steps)
 
         with torch.no_grad():
             qvalues = q_training.clone()
