@@ -112,11 +112,6 @@ class NNQPlayer(Player):
         self.q_log.clear()
 
         self.log_start_state_q()
-    import matplotlib.pyplot as plt
-    import io
-    import torch
-
-    # ... inside NNQPlayer class ...
 
     def log_start_state_q(self):
         """
