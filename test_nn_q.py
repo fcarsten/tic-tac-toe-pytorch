@@ -44,12 +44,12 @@ p1_t = nnplayer2
 p1 = p1_t
 p2 = p2_t
 
-# nnplayer.training= False
-# nnplayer2.training= False
-
 for i in range(num_training_evaluation_batchs):
     p1win, p2win, draw = evaluate_batch(p1_t, p2_t, games_per_evaluation_batch, False
                                         , writer=writer, epoch=i)
+    p1_t.log_weights()
+    p2_t.log_weights()
+
     p1_wins.append(p1win)
     p2_wins.append(p2win)
     draws.append(draw)
@@ -58,8 +58,8 @@ for i in range(num_training_evaluation_batchs):
 
 writer.close()
 
-# nnplayer.training= False
-# nnplayer2.training= False
+nnplayer.training= False
+nnplayer2.training= False
 
 for i in range(num_evaluation_batchs):
     p1win, p2win, draw = evaluate_batch(p1, p2, games_per_evaluation_batch, False)

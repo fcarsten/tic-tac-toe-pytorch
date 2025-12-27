@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import io
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -83,6 +85,45 @@ class NNQPlayer(Player):
         self.next_value_log.clear()
         self.q_log.clear()
 
+    import matplotlib.pyplot as plt
+    import io
+    import torch
+
+    # ... inside NNQPlayer class ...
+
+    def log_q_heatmap(self, q_values, step):
+        """Logs a 3x3 heatmap of Q-values to TensorBoard."""
+        if not self.writer:
+            return
+
+        # 1. Prepare the data: Reshape the 9 Q-values into a 3x3 grid
+        # Use detach().cpu() to ensure the tensor is off the GPU/graph
+        heatmap_data = q_values.detach().cpu().numpy().reshape(3, 3)
+
+        # 2. Create the Matplotlib figure
+        fig, ax = plt.subplots(figsize=(4, 4))
+        # vmin/vmax ensures the color scale stays consistent as the agent learns
+        im = ax.imshow(heatmap_data, cmap='viridis', vmin=-1.0, vmax=1.0)
+        plt.colorbar(im)
+        ax.set_title(f"Q-Values Heatmap (Step {step})")
+
+        # 3. Use the built-in add_figure method
+        # This automatically handles buffer conversion and resizing
+        self.writer.add_figure(f'{self.name}/Q_Heatmap', fig, global_step=step)
+
+        # Optional: Close the figure to free up memory
+        plt.close(fig)
+
+    def log_weights(self):
+        """Logs histograms of weights and biases for all layers."""
+        if not self.writer:
+            return
+
+        for name, param in self.nn.model.named_parameters():
+            self.writer.add_histogram(f'{self.name}/Weights/{name}', param, self.training_steps)
+            if param.grad is not None:
+                self.writer.add_histogram(f'{self.name}/Gradients/{name}', param.grad, self.training_steps)
+
     def move(self, board: Board):
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
@@ -92,6 +133,9 @@ class NNQPlayer(Player):
 
         # Log Average Max Q-value for this game's states
         if self.writer and self.training:
+            if self.training_steps % 100 == 0:
+                self.log_q_heatmap(q_training, self.training_steps)
+            self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_training, self.training_steps)
             max_q = torch.max(q_training).item()
             self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.training_steps)
 
