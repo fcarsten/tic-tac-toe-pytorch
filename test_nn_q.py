@@ -1,3 +1,6 @@
+import os
+import time
+
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -15,7 +18,16 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
-writer = SummaryWriter('runs/tic_tac_toe_experiment_1')
+
+# Define a descriptive name for the current experiment
+experiment_name = "NNQPlayer_vs_RndMinMaxAgent"
+# Generate a unique timestamp string
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+# Combine them to create the unique log directory path
+log_dir_path = os.path.join("runs", f"{experiment_name}_{timestamp}")
+
+# Initialize the SummaryWriter with the specific path
+writer = SummaryWriter(log_dir_path)
 
 board = Board()
 nnplayer = NNQPlayer("QLearner1", device= device, writer=writer)
