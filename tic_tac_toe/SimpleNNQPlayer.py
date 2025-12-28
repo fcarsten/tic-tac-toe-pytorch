@@ -186,7 +186,7 @@ class NNQPlayer(Player):
 
             if self.training:
                 if self.action_log: # Skip on first move, ie when action_log is empty
-                    self.next_value_log.append(q_values[move].item())
+                    self.next_value_log.append(torch.max(q_values).item())
                 self.action_log.append(move)
 
             _, res, finished = board.move(move, self.side)
@@ -214,9 +214,22 @@ class NNQPlayer(Player):
         actions = torch.tensor(self.action_log, device=self.device)
         next_vals = torch.tensor(self.next_value_log, device=self.device)
 
-        targets[torch.arange(len(actions)), actions] = self.reward_discount * next_vals
+        # 3. Vectorized Bellman Update
+        # Identify indices for intermediate moves and the terminal move
+        num_moves = len(actions)
+        row_indices = torch.arange(num_moves, device=self.device)
 
-        loss = self.nn.train_batch(states, targets, writer=self.writer, name= self.name, game_number=self.game_number)
+        # Calculate discounted values for all (will be wrong for the last one)
+        bellman_targets = self.reward_discount * next_vals
+
+        # Override the very last target with the pure reward (no discount)
+        bellman_targets[-1] = reward
+
+        # Update only the Q-values for the actions that were actually taken
+        targets[row_indices, actions] = bellman_targets
+
+        loss = self.nn.train_batch(states, targets, writer=self.writer,
+                                   name=self.name, game_number=self.game_number)
 
         # Log Loss to TensorBoard
         if self.writer:
