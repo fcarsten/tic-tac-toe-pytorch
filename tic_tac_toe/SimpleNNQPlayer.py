@@ -171,7 +171,7 @@ class NNQPlayer(Player):
 
                 # Move-level logging (use q_values for logging)
                 if self.writer and self.training and self.move_step % 100 == 0:
-                    self.log_q_heatmap(q_values, self.move_step)
+                    # self.log_q_heatmap(q_values, self.move_step)
                     self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
                     max_q = float(torch.max(q_values).item())
                     avg_q = float(torch.mean(q_values).item())
