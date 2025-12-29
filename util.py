@@ -65,9 +65,13 @@ def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
     draw_pct = draw_count / num_games
 
     if writer:
-        writer.add_scalar('Batch/P1_Win_Rate', p1_win_pct, epoch)
-        writer.add_scalar('Batch/P2_Win_Rate', p2_win_pct, epoch)
-        writer.add_scalar('Batch/Draw_Rate', draw_pct, epoch)
+        writer.add_scalar(f"{player1.name}/1st/Win_Rate", p1_win_pct, epoch)
+        writer.add_scalar(f"{player1.name}/1st/Loss_Rate", p2_win_pct, epoch)
+        writer.add_scalar(f"{player1.name}/1st/DRAW_Rate", draw_pct, epoch)
+
+        writer.add_scalar(f"{player2.name}/2nd/Loss_Rate", p1_win_pct, epoch)
+        writer.add_scalar(f"{player2.name}/2nd/Win_Rate", p2_win_pct, epoch)
+        writer.add_scalar(f"{player2.name}/2nd/DRAW_Rate", draw_pct, epoch)
 
     if not silent:
         print("After {} game we have draws: {}, Player 1 wins: {}, and Player 2 wins: {}.".format(num_games, draw_count,
@@ -95,10 +99,5 @@ def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num
         draws.append(draw)
         game_counter = game_counter + 1
         game_number.append(game_counter)
-        # if writer is not None:
-        #     summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag='Player 1 Win', simple_value=p1win),
-        #                                 tf.compat.v1.Summary.Value(tag='Player 2 Win', simple_value=p2win),
-        #                                 tf.compat.v1.Summary.Value(tag='Draw', simple_value=draw)])
-        #     writer.add_summary(summary, game_counter)
 
     return game_number, p1_wins, p2_wins, draws
