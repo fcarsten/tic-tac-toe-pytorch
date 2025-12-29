@@ -16,15 +16,9 @@ class EGreedyNNQPlayer(NNQPlayer):
     """
     Neural network Q-learning Tic Tac Toe player rewritten for PyTorch.
     """
-    def __init__(self, name: str = "EGreedyNNQPlayer", reward_discount: float = 0.95,
-                 win_value: float = 1.0, draw_value: float = 0.0,
-                 loss_value: float = -1.0, learning_rate: float = 0.01,
-                 random_move_prob: float = 0.95, random_move_decrease: float = 0.995,
-                 training: bool = True, device: torch.device = torch.device("cpu")):  # Added writer
-        super().__init__(name, reward_discount,
-                 win_value, draw_value,
-                 loss_value, learning_rate,
-                 training, device)
+    def __init__(self, name: str = "EGreedyNNQPlayer",
+                 random_move_prob: float = 0.95, random_move_decrease: float = 0.995, **kwargs):  # Added writer
+        super().__init__(name, **kwargs)
 
         self.random_move_prob = random_move_prob
         self.random_move_decrease =random_move_decrease
