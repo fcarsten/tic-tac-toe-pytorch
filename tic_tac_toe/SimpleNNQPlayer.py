@@ -70,15 +70,14 @@ class NNQPlayer(Player):
         # Concatenate into the expected (27,) shape
         return torch.cat([is_me, is_other, is_empty])
 
-    def __init__(self, name: str, reward_discount: float = 0.95,
+    def __init__(self, name: str = "NNQPlayer", reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
                  loss_value: float = -1.0, learning_rate: float = 0.01,
-                 training: bool = True, device: torch.device = torch.device("cpu"),
-                 writer: SummaryWriter = None):  # Added writer
+                 training: bool = True, device: torch.device = torch.device("cpu")):  # Added writer
         super().__init__()
         self.device = device
         self.name = name
-        self.writer = writer
+        self.writer = None
         self.reward_discount = reward_discount
         self.win_value = win_value
         self.draw_value = draw_value
@@ -96,7 +95,7 @@ class NNQPlayer(Player):
 
         self.nn = QNetwork(learning_rate, device)
 
-
+    def log_graph(self):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
@@ -233,5 +232,5 @@ class NNQPlayer(Player):
 
         # Log Loss to TensorBoard
         if self.writer:
-            self.writer.add_scalar(f'{self.name}/Loss', loss, self.game_number)
+            self.writer.add_scalar(f'{self.name}/Training_Loss', loss, self.game_number)
 
