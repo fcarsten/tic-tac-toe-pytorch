@@ -6,6 +6,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe import RndMinMaxAgent
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
+from tic_tac_toe.DQNPlayer import DQNPlayer
+from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
+from tic_tac_toe.DuelingDoubleDQNPlayer import DuelingDoubleDQNPlayer
 from tic_tac_toe.RandomPlayer import RandomPlayer
 from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
 from util import print_board, play_game, evaluate_batch
@@ -22,17 +25,22 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 board = Board()
 
+rndplayer = RandomPlayer("RandomPlayer")
+rnd_mm_player = RndMinMaxAgent("RandomMinMaxPlayer")
+mm_player = MinMaxAgent("MinMaxPlayer")
+# tq_player = TQPlayer()
 
 nnegreedy_player = EGreedyNNQPlayer("EGreedyNNQPlayer", device= device)
 nnplayer = NNQPlayer("NNQPlayer", device= device)
+dqn_player = DQNPlayer("DQNPlayer", device= device)
+replayNNQPlayer = ReplayNNQPlayer("ReplayNNQPlayer", device= device)
+double_dqn_player = DoubleDQNPlayer("DoubleDQNPlayer", device= device)
+dueling_double_player = DuelingDoubleDQNPlayer("DuelingDoubleDQNPlayer", device= device)
+
+
 # nnplayer2 = NNQPlayer("NNQPlayer2", device= device, writer=writer)
 #
 
-rndplayer = RandomPlayer("RandomPlayer")
-mm_player = RndMinMaxAgent("RandomMinMaxPlayer")
-replayNNQPlayer = ReplayNNQPlayer("ReplayNNQPlayer", device= device)
-
-# tq_player = TQPlayer()
 
 p1_wins = []
 p2_wins = []
@@ -40,7 +48,7 @@ draws = []
 game_number = []
 game_counter = 0
 
-games_per_training_batch = 40
+games_per_training_batch = 120
 num_training_batches = 200
 num_training_eval_games = 50
 
@@ -48,8 +56,8 @@ num_evaluation_batches = 2
 games_per_evaluation_batch = 100
 
 # nnplayer rndplayer mm_player
-p1 = nnplayer
-p2 = rndplayer
+p2 = dueling_double_player
+p1 = rnd_mm_player
 
 # Define a descriptive name for the current experiment
 experiment_name = f"{p1.name}_vs_{p2.name}"
@@ -61,7 +69,7 @@ writer = SummaryWriter(log_dir_path)
 p1.writer = writer
 p2.writer = writer
 
-p1.log_graph()
+p2.log_graph()
 # Initialize the SummaryWriter with the specific path
 
 for i in range(num_training_batches):

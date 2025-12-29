@@ -17,7 +17,7 @@ class QNetwork(nn.Module):
         super().__init__()
         self.device = device
 
-        self.model = nn.Sequential(OrderedDict([
+        self.feature_layer = nn.Sequential(OrderedDict([
             ('Input_Layer', nn.Linear(BOARD_SIZE * 3, BOARD_SIZE * 3 * 9)),
             ('Activation_1', nn.ReLU()),
             ('Output_Layer', nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE))
@@ -27,14 +27,14 @@ class QNetwork(nn.Module):
         self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
-        return self.model(x)
+        return self.feature_layer(x)
 
     def log_weights(self, writer=None, name=None, game_number=None):
         """Logs histograms of weights and biases for all layers."""
         if not writer:
             return
 
-        for n, param in self.model.named_parameters():
+        for n, param in self.feature_layer.named_parameters():
             writer.add_histogram(f'{name}/Weights/{n}', param, game_number)
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
@@ -102,7 +102,7 @@ class NNQPlayer(Player):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
-            self.writer.add_graph(self.nn.model, dummy_input)
+            self.writer.add_graph(self.nn.feature_layer, dummy_input)
 
     def new_game(self, side: int):
         self.game_number = self.game_number + 1

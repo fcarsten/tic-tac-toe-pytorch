@@ -19,7 +19,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         # 1. Get current Q-values
         nn_input = self.board_state_to_nn_input(board.state)
         with torch.no_grad():
-            q_values = self.nn(nn_input)
+            q_values = self.nn(nn_input).squeeze(0)
 
         # 2. Your Alignment Logic: Skip first move to get S_{t+1}
         if self.training and self.action_log:
