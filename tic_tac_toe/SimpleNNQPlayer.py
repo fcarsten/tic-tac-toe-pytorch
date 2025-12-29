@@ -191,18 +191,21 @@ class NNQPlayer(Player):
             _, res, finished = board.move(move, self.side)
             return res, finished
 
+    def get_reward_value(self, result):
+        if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
+                (result == GameResult.CROSS_WIN and self.side == CROSS):
+            return self.win_value
+        elif result == GameResult.DRAW:
+            return self.draw_value
+
+        return self.loss_value
+
+
     def final_result(self, result: GameResult):
         if not self.training:
             return
 
-        # Determine reward logic ...
-        if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
-                (result == GameResult.CROSS_WIN and self.side == CROSS):
-            reward = self.win_value
-        elif result == GameResult.DRAW:
-            reward = self.draw_value
-        else:
-            reward = self.loss_value
+        reward = self.get_reward_value(result)
 
         self.next_value_log.append(reward)
 
