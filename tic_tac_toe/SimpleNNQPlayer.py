@@ -93,7 +93,10 @@ class NNQPlayer(Player):
         self.next_value_log = []
         self.q_log = []
 
-        self.nn = QNetwork(learning_rate, device)
+        self.nn = self._create_network(learning_rate)
+
+    def _create_network(self, learning_rate) -> nn.Module:
+        return QNetwork(learning_rate, self.device)
 
     def log_graph(self):
         if self.writer:
