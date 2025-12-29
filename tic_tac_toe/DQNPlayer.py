@@ -53,6 +53,10 @@ class DQNPlayer(ReplayNNQPlayer):
         self.nn.train_batch(states_v, targets, writer=self.writer,
                             name=self.name, game_number=self.game_number)
 
+        if self.writer:
+            td_errors = torch.abs(expected_q - current_qs[torch.arange(self.batch_size), actions_v])
+            self.writer.add_scalar(f'{self.name}/Mean_TD_Error', td_errors.mean(), self.move_step)
+
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
             self._update_target_network()
