@@ -18,7 +18,7 @@ class TQPlayer(Player):
     A Tic Tac Toe player, implementing Tabular Q Learning
     """
 
-    def __init__(self, alpha=0.9, gamma=0.95, q_init=0.6):
+    def __init__(self, alpha=0.9, gamma=0.95, q_init=0.6, name : str = "TabularQPlayer"):
         """
         Called when creating a new TQPlayer. Accepts some optional parameters to define its learning behaviour
         :param alpha: The learning rate needs to be larger than 0 and smaller than 1
@@ -27,6 +27,7 @@ class TQPlayer(Player):
         :param q_init: The initial q values for each move and state.
         """
         self.side = None
+        self.name = name
         self.q = {}  # type: Dict[int, np.ndarray]
         self.move_history = []  # type: List[(int, int)]
         self.learning_rate = alpha

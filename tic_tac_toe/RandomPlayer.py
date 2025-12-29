@@ -12,11 +12,12 @@ class RandomPlayer(Player):
     It does not learn or get better.
     """
 
-    def __init__(self):
+    def __init__(self, name : str = "RandomPlayer"):
         """
         Getting ready for playing tic tac toe.
         """
         self.side = None
+        self.name = name
         super().__init__()
 
     def move(self, board: Board) -> tuple[GameResult, bool]:

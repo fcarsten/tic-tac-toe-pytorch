@@ -21,12 +21,12 @@ class RndMinMaxAgent(Player):
     DRAW_VALUE = 0
     LOSS_VALUE = -1
 
-    def __init__(self):
+    def __init__(self, name : str = "RndMinMaxAgent"):
         """
         Getting ready for playing tic tac toe.
         """
         self.side = None
-
+        self.name = name
         """
         Cache to store the evaluation of board positions that we have already looked at. This avoids repeating a lot
         of work as we do not look at all the possible continuation from this position again.
