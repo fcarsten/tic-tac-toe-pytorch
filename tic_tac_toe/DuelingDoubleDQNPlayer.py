@@ -83,25 +83,7 @@ class DuelingDoubleDQNPlayer(DoubleDQNPlayer):
     def log_graph(self):
         if not self.writer: return
 
-        # A wrapper module specifically for TensorBoard to label the nodes
-        class TrainingFlow(nn.Module):
-            def __init__(self, policy_net, loss_fn):
-                super().__init__()
-                self.policy_net = policy_net
-                self.loss_fn = loss_fn
-
-            def forward(self, board_state, target_q):
-                # These names will appear as labels in the graph
-                predicted_q = self.policy_net(board_state)
-                loss = self.loss_fn(predicted_q, target_q)
-                return loss
-
-        # Instantiate wrapper
-        wrapper = TrainingFlow(self.nn, self.nn.loss_fn)
-
-        # Dummy inputs for tracing
-        dummy_state = torch.zeros((1, 27), device=self.device)
-        dummy_target = torch.zeros((1, 9), device=self.device)
+        writer = torch.zeros((1, 27), device=self.device)
 
         # Log to TensorBoard
-        self.writer.add_graph(wrapper, (dummy_state, dummy_target))
+        self.writer.add_graph(self.nn, writer)
