@@ -2,99 +2,113 @@ import random
 import torch
 import numpy as np
 from collections import deque
-from tic_tac_toe.Board import Board
+from tic_tac_toe.Board import Board, EMPTY
 from tic_tac_toe.Player import GameResult
 from tic_tac_toe.EGreedyNNQPlayer import EGreedyNNQPlayer
 
 
 class ReplayNNQPlayer(EGreedyNNQPlayer):
-    """
-    Extends EGreedyNNQPlayer with an Experience Replay Buffer.
-    Instead of training on a single game at a time, it samples random
-    batches of moves from past games to stabilize learning.
-    """
-
-    def __init__(self, name: str = "ReplayNNQPlayer", reward_discount: float = 0.95,
-                 win_value: float = 1.0, draw_value: float = 0.0,
-                 loss_value: float = -1.0, learning_rate: float = 0.0005,
-                 random_move_prob: float = 0.95, random_move_decrease: float = 0.995,
-                 batch_size: int = 64, buffer_size: int = 10000,
-                 training: bool = True, device: torch.device = torch.device("cpu")):
-
-        super().__init__(name, reward_discount, win_value, draw_value,
-                         loss_value, learning_rate, random_move_prob,
-                         random_move_decrease, training, device)
-
-        # Experience Replay Buffer: Stores (state, action, next_max_q, reward, is_terminal)
+    def __init__(self, name: str = "ReplayNNQPlayer", batch_size: int = 64,
+                 buffer_size: int = 10000, **kwargs):
+        super().__init__(name, **kwargs)
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
 
-    def final_result(self, result: GameResult):
-        if not self.training:
-            return
+    def move(self, board: Board):
+        self.move_step += 1
+        # 1. Get current Q-values
+        nn_input = self.board_state_to_nn_input(board.state)
+        with torch.no_grad():
+            q_values = self.nn(nn_input)
 
-        # 1. Determine the final reward for the game
-        if (result == GameResult.NAUGHT_WIN and self.side == 1) or \
-                (result == GameResult.CROSS_WIN and self.side == 2):
-            reward = self.win_value
-        elif result == GameResult.DRAW:
-            reward = self.draw_value
+        # 2. Your Alignment Logic: Skip first move to get S_{t+1}
+        if self.training and self.action_log:
+            # The current state is the "Next State" for the previous move
+            self.next_state_log.append(nn_input)
+            # Move-level logging (use q_values for logging)
+            if self.writer and self.training and self.move_step % 500 == 0:
+                # self.log_q_heatmap(q_values, self.move_step)
+                self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
+                max_q = float(torch.max(q_values).item())
+                avg_q = float(torch.mean(q_values).item())
+                self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.move_step)
+                self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
+                self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
+
+            # 3. E-Greedy Selection (Same as your EGreedyNNQPlayer)
+        occupied_mask = torch.as_tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
+        logits = q_values.clone()
+        logits[occupied_mask] = -float('inf')
+
+        if (self.training) and (np.random.rand(1) < self.random_move_prob):
+            move = board.random_empty_spot()
         else:
-            reward = self.loss_value
+            move = int(torch.argmax(logits).item())
 
-        # 2. Store this game's transitions into the replay buffer
-        # We zip logs to create (S, A, S_next_value) tuples
+        if self.training:
+            self.state_log.append(nn_input)
+            self.action_log.append(move)
+
+        _, res, finished = board.move(move, self.side)
+        return res, finished
+
+    def new_game(self, side: int):
+        super().new_game(side)
+        self.next_state_log = []  # Track the actual tensors
+
+    def final_result(self, result: GameResult):
+        if not self.training: return
+
+        reward = self.get_reward_value(result)  # Logic to get 1.0, 0.0, -1.0
+
+        # Store transitions in memory
         for i in range(len(self.action_log)):
-            state = self.state_log[i]
-            action = self.action_log[i]
+            s = self.state_log[i]
+            a = self.action_log[i]
 
-            # The 'next_value' in our existing logic is already the max_q of the next state
-            # recorded during the move() function.
-            next_val = self.next_value_log[i] if i < len(self.next_value_log) else reward
-            is_terminal = (i == len(self.action_log) - 1)
+            if i < len(self.next_state_log):
+                s_next = self.next_state_log[i]
+                done = False
+            else:
+                s_next = None  # Terminal
+                done = True
 
-            self.memory.append((state, action, next_val, is_terminal))
+            self.memory.append((s, a, reward, s_next, done))
 
-        # 3. Perform a Training Step using a Random Batch from Memory
-        if len(self.memory) > self.batch_size:
+        # Sample and Train
+        if len(self.memory) >= self.batch_size:
             self._train_from_replay()
 
-        # 4. Decay exploration probability
         self.random_move_prob *= self.random_move_decrease
-        if self.writer:
-            self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)
+        self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)
 
     def _train_from_replay(self):
-        """Samples a random batch from memory and updates the neural network."""
         batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
 
-        states, actions, next_vals, terminals = zip(*batch)
+        states_v = torch.stack(states).to(self.device)
+        actions_v = torch.tensor(actions, device=self.device)
+        rewards_v = torch.tensor(rewards, device=self.device)
 
-        states_tensor = torch.stack(states).to(self.device)
-        actions_tensor = torch.tensor(actions, device=self.device)
-        next_vals_tensor = torch.tensor(next_vals, device=self.device)
-
-        # Get current Q-values for the batch
+        # Calculate Targets
         with torch.no_grad():
-            targets = self.nn(states_tensor)
+            # Get current brain's opinion on ALL states in batch
+            current_qs = self.nn(states_v)
 
-            # Bellman Equation: R + gamma * maxQ(S')
-        # Note: If terminal, next_val is just the reward (no discount)
-        updated_q_values = next_vals_tensor.clone()
+            # For next states, find the Max Q
+            next_q_max = torch.zeros(self.batch_size, device=self.device)
+            for j, ns in enumerate(next_states):
+                if ns is not None:
+                    next_q_max[j] = torch.max(self.nn(ns.to(self.device)))
 
-        # Apply discount to non-terminal transitions
-        # In our logic, next_vals already contains the max_q of the next state for non-terminals
-        # and the raw reward for terminals.
-        mask = torch.tensor([not t for t in terminals], device=self.device)
-        updated_q_values[mask] = self.reward_discount * next_vals_tensor[mask]
+        # Bellman Equation: r + gamma * maxQ(s')
+        targets = current_qs.clone()
+        for j in range(self.batch_size):
+            if dones[j]:
+                targets[j, actions_v[j]] = rewards_v[j]
+            else:
+                targets[j, actions_v[j]] = rewards_v[j] + self.reward_discount * next_q_max[j]
 
-        # Update specific actions in the target tensor
-        row_indices = torch.arange(self.batch_size, device=self.device)
-        targets[row_indices, actions_tensor] = updated_q_values
+        self.nn.train_batch(states_v, targets, writer=self.writer,
+                            name=self.name, game_number=self.game_number)
 
-        # Backpropagate
-        loss = self.nn.train_batch(states_tensor, targets, writer=self.writer,
-                                   name=self.name, game_number=self.game_number)
-
-        if self.writer:
-            self.writer.add_scalar(f'{self.name}/Training_Loss', loss, self.game_number)
