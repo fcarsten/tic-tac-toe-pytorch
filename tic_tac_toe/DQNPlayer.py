@@ -40,9 +40,12 @@ class DQNPlayer(ReplayNNQPlayer):
 
             if non_final_mask.any():
                 non_final_next_states = torch.stack([ns for ns in next_states if ns is not None]).to(self.device)
+
+                target_q_estimates = self.target_nn(non_final_next_states)
+
                 # Use target_nn for the 'max Q' part of the Bellman equation
-                target_q_values = self.target_nn(non_final_next_states)
-                next_q_max[non_final_mask] = torch.max(target_q_values, dim=1)[0]
+
+                next_q_max[non_final_mask] = torch.max(target_q_estimates, dim=1)[0]
 
         # 3. Bellman Equation: r + gamma * max_Q_target(s')
         targets = current_qs.clone()

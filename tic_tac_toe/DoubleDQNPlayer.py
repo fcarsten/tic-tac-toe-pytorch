@@ -29,14 +29,14 @@ class DoubleDQNPlayer(DQNPlayer):
             if non_final_mask.any():
                 non_final_next_states = torch.stack([ns for ns in next_states if ns is not None]).to(self.device)
 
+                target_q_estimates = self.target_nn(non_final_next_states)
+
                 # --- DOUBLE DQN STEP ---
                 # A. Select the best action using the ONLINE Policy Network (self.nn)
                 # This prevents picking the "luckiest" value from the target network.
                 best_actions = self.nn(non_final_next_states).argmax(dim=1, keepdim=True)
 
                 # B. Evaluate that specific action using the TARGET Network (self.target_nn)
-                target_q_estimates = self.target_nn(non_final_next_states)
-
                 # Extract the Q-values for the 'best_actions' found by the online network
                 next_q_values[non_final_mask] = target_q_estimates.gather(1, best_actions).squeeze(1)
 
