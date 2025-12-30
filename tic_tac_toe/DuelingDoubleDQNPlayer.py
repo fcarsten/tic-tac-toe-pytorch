@@ -79,11 +79,3 @@ class DuelingDoubleDQNPlayer(DoubleDQNPlayer):
     def _create_network(self, learning_rate) -> nn.Module:
         return DuelingQNetwork(learning_rate, self.device)
 
-
-    def log_graph(self):
-        if not self.writer: return
-
-        writer = torch.zeros((1, 27), device=self.device)
-
-        # Log to TensorBoard
-        self.writer.add_graph(self.nn, writer)

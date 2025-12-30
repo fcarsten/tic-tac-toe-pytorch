@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter  # Added
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
+from util import board_state_to_one_hot_nn_input
 
 
 class QNetwork(nn.Module):
@@ -57,18 +58,7 @@ class NNQPlayer(Player):
     """
 
     def board_state_to_nn_input(self, state: np.ndarray) -> torch.Tensor:
-        # Convert numpy state directly to tensor once
-        t_state = torch.as_tensor(state, device=self.device)
-
-        other_side = Board.other_side(self.side)
-
-        # Create masks directly in PyTorch
-        is_me = (t_state == self.side).float()
-        is_other = (t_state == other_side).float()
-        is_empty = (t_state == EMPTY).float()
-
-        # Concatenate into the expected (27,) shape
-        return torch.cat([is_me, is_other, is_empty])
+        return board_state_to_one_hot_nn_input(state, self.device, self.side)
 
     def __init__(self, name: str = "NNQPlayer", reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
@@ -172,7 +162,7 @@ class NNQPlayer(Player):
                 self.q_log.append(q_values)
 
                 # Move-level logging (use q_values for logging)
-                if self.writer and self.training and self.move_step % 100 == 0:
+                if self.writer and self.move_step % 100 == 0:
                     # self.log_q_heatmap(q_values, self.move_step)
                     self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
                     max_q = float(torch.max(q_values).item())

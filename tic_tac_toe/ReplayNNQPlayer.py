@@ -11,6 +11,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
     def __init__(self, name: str = "ReplayNNQPlayer", batch_size: int = 64,
                  buffer_size: int = 10000, **kwargs):
         super().__init__(name, **kwargs)
+        self.next_state_log = None
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
 
@@ -26,21 +27,21 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
             # The current state is the "Next State" for the previous move
             self.next_state_log.append(nn_input)
             # Move-level logging (use q_values for logging)
-            if self.writer and self.training and self.move_step % 500 == 0:
-                # self.log_q_heatmap(q_values, self.move_step)
-                self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
-                max_q = float(torch.max(q_values).item())
-                avg_q = float(torch.mean(q_values).item())
-                self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.move_step)
-                self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
-                self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
+        if self.writer and self.training and self.move_step % 500 == 0:
+            # self.log_q_heatmap(q_values, self.move_step)
+            self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
+            max_q = float(torch.max(q_values).item())
+            avg_q = float(torch.mean(q_values).item())
+            self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
 
             # 3. E-Greedy Selection (Same as your EGreedyNNQPlayer)
         occupied_mask = torch.as_tensor(board.state != EMPTY, device=self.device, dtype=torch.bool)
         logits = q_values.clone()
         logits[occupied_mask] = -float('inf')
 
-        if (self.training) and (np.random.rand(1) < self.random_move_prob):
+        if self.training and (np.random.rand(1) < self.random_move_prob):
             move = board.random_empty_spot()
         else:
             move = int(torch.argmax(logits).item())

@@ -1,8 +1,10 @@
+import numpy as np
+import torch
 from IPython.display import HTML, display
 from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe.Player import Player
-from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT
+from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
 
 
 def print_board(board):
@@ -43,6 +45,20 @@ def play_game(board: Board, player1: Player, player2: Player):
     player2.final_result(final_result)
     return final_result
 
+
+def board_state_to_one_hot_nn_input(state: np.ndarray, device: torch.device, side: int) -> torch.Tensor:
+    # Convert numpy state directly to tensor once
+    t_state = torch.as_tensor(state, device=device)
+
+    other_side = Board.other_side(side)
+
+    # Create masks directly in PyTorch
+    is_me = (t_state == side).float()
+    is_other = (t_state == other_side).float()
+    is_empty = (t_state == EMPTY).float()
+
+    # Concatenate into the expected (27,) shape
+    return torch.cat([is_me, is_other, is_empty])
 
 def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
                    silent: bool = False, writer: SummaryWriter = None, epoch: int = 0):
