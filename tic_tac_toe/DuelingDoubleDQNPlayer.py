@@ -4,7 +4,6 @@ import torch
 import torch.optim as optim
 from torch import nn as nn
 
-from tic_tac_toe.Board import BOARD_SIZE
 from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
 
 class DuelingQNetwork(nn.Module):
@@ -41,7 +40,7 @@ class DuelingQNetwork(nn.Module):
         if not writer:
             return
 
-        for n, param in self.feature_layer.named_parameters():
+        for n, param in self.named_parameters():
             writer.add_histogram(f'{name}/Weights/{n}', param, game_number)
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
@@ -66,7 +65,8 @@ class DuelingQNetwork(nn.Module):
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
 
-        self.log_weights(writer, name, game_number)
+        if writer and (game_number % 100 == 0):
+            self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()  # Return loss for logging

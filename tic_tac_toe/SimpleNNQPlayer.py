@@ -35,7 +35,7 @@ class QNetwork(nn.Module):
         if not writer:
             return
 
-        for n, param in self.feature_layer.named_parameters():
+        for n, param in self.named_parameters():
             writer.add_histogram(f'{name}/Weights/{n}', param, game_number)
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
