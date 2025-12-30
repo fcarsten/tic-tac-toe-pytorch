@@ -60,6 +60,24 @@ def board_state_to_one_hot_nn_input(state: np.ndarray, device: torch.device, sid
     # Concatenate into the expected (27,) shape
     return torch.cat([is_me, is_other, is_empty])
 
+def board_state_to_cnn_input(state: np.ndarray, device: torch.device, side: int) -> torch.Tensor:
+    # 1. Convert numpy state to tensor and reshape to the grid dimensions (3x3)
+    # If your board is already 3x3, this just ensures the shape is correct.
+    t_state = torch.as_tensor(state, device=device).view(3, 3)
+
+    other_side = Board.other_side(side)
+
+    # 2. Create masks (Spatial Features)
+    # Each of these will be a (3, 3) matrix
+    is_me = (t_state == side).float()
+    is_other = (t_state == other_side).float()
+    is_empty = (t_state == EMPTY).float()
+
+    # 3. Stack into (Channels, Height, Width) -> (3, 3, 3)
+    # Using stack with dim=0 creates a new dimension at the start
+    cnn_input = torch.stack([is_me, is_other, is_empty], dim=0)
+
+    return cnn_input
 def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
                    silent: bool = False, writer: SummaryWriter = None, epoch: int = 0):
     board = Board()

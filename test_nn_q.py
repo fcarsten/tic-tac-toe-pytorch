@@ -6,6 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe import RndMinMaxAgent
 from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
+from tic_tac_toe.ConvDuelingDoubleDQNPlayer import ConvDuelingDoubleDQNPlayer
 from tic_tac_toe.DQNPlayer import DQNPlayer
 from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
 from tic_tac_toe.DuelingDoubleDQNPlayer import DuelingDoubleDQNPlayer
@@ -36,7 +37,7 @@ dqn_player = DQNPlayer("DQNPlayer", device= device)
 replayNNQPlayer = ReplayNNQPlayer("ReplayNNQPlayer", device= device)
 double_dqn_player = DoubleDQNPlayer("DoubleDQNPlayer", device= device)
 dueling_double_player = DuelingDoubleDQNPlayer("DuelingDoubleDQNPlayer", device= device)
-
+convDuelingDoubleDQNPlayer = ConvDuelingDoubleDQNPlayer("ConvDuelingDoubleDQNPlayer", device= device)
 
 # nnplayer2 = NNQPlayer("NNQPlayer2", device= device, writer=writer)
 #
@@ -56,7 +57,7 @@ num_evaluation_batches = 2
 games_per_evaluation_batch = 100
 
 # nnplayer rndplayer mm_player
-p2 = dueling_double_player
+p2 = convDuelingDoubleDQNPlayer
 p1 = rnd_mm_player
 
 # Define a descriptive name for the current experiment

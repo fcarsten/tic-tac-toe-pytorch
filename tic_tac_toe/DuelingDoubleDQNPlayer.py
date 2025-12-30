@@ -35,16 +35,6 @@ class DuelingQNetwork(nn.Module):
         self.loss_fn = nn.MSELoss()
         self.to(device)
 
-    def log_weights(self, writer=None, name=None, game_number=None):
-        """Logs histograms of weights and biases for all layers."""
-        if not writer:
-            return
-
-        for n, param in self.named_parameters():
-            writer.add_histogram(f'{name}/Weights/{n}', param, game_number)
-            if param.grad is not None:
-                writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
-
     def forward(self, x):
         # 1. Ensure input is 2D (Batch Size, Features)
         # If x is [27], it becomes [1, 27]

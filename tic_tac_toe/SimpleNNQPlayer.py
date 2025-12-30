@@ -111,15 +111,11 @@ class NNQPlayer(Player):
         This provides a consistent baseline even if the player is currently Naught.
         """
         if self.writer and self.training:
-            # Create a 'First Mover' perspective empty board:
-            # [9 zeros for 'me', 9 zeros for 'other', 9 ones for 'empty']
-            me = torch.zeros(BOARD_SIZE, device=self.device)
-            other = torch.zeros(BOARD_SIZE, device=self.device)
-            empty = torch.ones(BOARD_SIZE, device=self.device)
-            fixed_input = torch.cat([me, other, empty]).unsqueeze(0)
+            b = Board()
+            b.reset()
 
             with torch.no_grad():
-                q_values = self.nn(fixed_input)[0]
+                q_values = self.nn(self.board_state_to_nn_input(b.state))[0]
                 max_q = torch.max(q_values).item()
                 # This should trend toward 0.0 as the model realizes the game is a draw
                 self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.game_number)
