@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import OrderedDict
 
-from util import board_state_to_cnn_input
+from util import board_state_to_cnn_input, sample_balanced
 
 
 class ConvDuelingQNetwork(nn.Module):
@@ -20,13 +20,14 @@ class ConvDuelingQNetwork(nn.Module):
         # 1. Convolutional Feature Extractor
         # Assuming input_shape is (C, H, W)
         self.features = nn.Sequential(OrderedDict([
-            ('Conv1', nn.Conv2d(input_shape[0], 32, kernel_size=3, stride=1, padding=1)),
+            ('Conv1', nn.Conv2d(input_shape[0], 32, kernel_size=3, padding=1)),
+            ('LN1', nn.GroupNorm(1, 32)),  # GroupNorm with 1 group is LayerNorm for CNNs
             ('ReLU1', nn.ReLU()),
-            ('Conv2', nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)),
+            ('Conv2', nn.Conv2d(32, 64, kernel_size=3, padding=1)),
+            ('LN2', nn.GroupNorm(1, 64)),
             ('ReLU2', nn.ReLU()),
             ('Flatten', nn.Flatten())
         ]))
-
         # Calculate the size of the flattened features for the linear layers
         # This helper ensures we don't have to hard-code the linear input size
         with torch.no_grad():
@@ -102,8 +103,10 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
     # def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", random_move_decrease: float = 0.9995,
     #              learning_rate =5e-5, **kwargs):
 
-    def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", **kwargs):
-        super().__init__(name, **kwargs)
+    def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", reward_discount: float = 0.9,
+                 random_move_decrease: float = 0.9995, target_update_freq: int = 2000, learning_rate =1e-5, **kwargs):
+        super().__init__(name, reward_discount= reward_discount, target_update_freq=target_update_freq,
+                         random_move_decrease=random_move_decrease, learning_rate =learning_rate, **kwargs)
         # Override networks with Dueling architecture
 
     def _create_network(self, learning_rate) -> nn.Module:
@@ -120,10 +123,10 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
 
 
     def _train_from_replay(self):
-        if len(self.memory) < self.batch_size:
+        if sum(len(d) for d in self.memory) < self.batch_size:
             return
 
-        batch = random.sample(self.memory, self.batch_size)
+        batch = sample_balanced(self.memory, self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
         # torch.stack is perfect here: it turns [(3,3,3), (3,3,3)...] into (Batch, 3, 3, 3)
@@ -152,6 +155,7 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
 
         # 3. Bellman Equation: r + gamma * max_Q(s') * (1 - done)
         # Using 'not done' logic ensures terminal states have a future value of 0
+#        expected_q = rewards_v + (self.reward_discount * next_q_max)
         expected_q = rewards_v + (self.reward_discount * next_q_max * (~dones_v).float())
 
         # 4. Perform optimization
