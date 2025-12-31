@@ -1,3 +1,7 @@
+import random
+import math
+
+
 import numpy as np
 import torch
 from IPython.display import HTML, display
@@ -78,6 +82,7 @@ def board_state_to_cnn_input(state: np.ndarray, device: torch.device, side: int)
     cnn_input = torch.stack([is_me, is_other, is_empty], dim=0)
 
     return cnn_input
+
 def evaluate_batch(player1: Player, player2: Player, num_games: int = 100,
                    silent: bool = False, writer: SummaryWriter = None, epoch: int = 0):
     board = Board()
@@ -135,3 +140,45 @@ def evaluate_players(p1: Player, p2: Player, games_per_evaluation_batch=100, num
         game_number.append(game_counter)
 
     return game_number, p1_wins, p2_wins, draws
+
+def sample_balanced(memory, batch_size):
+    n = len(memory)
+    sizes = [len(d) for d in memory]
+
+    # Initial target per deque (even split)
+    base = batch_size // n
+    remainder = batch_size % n
+    allocation = [base + (1 if i < remainder else 0) for i in range(n)]
+
+    # Fix cases where buffers are too small and calculate deficit
+    deficit = 0
+    for i in range(n):
+        if allocation[i] > sizes[i]:
+            deficit += allocation[i] - sizes[i]
+            allocation[i] = sizes[i]
+
+    # Even redistribution loop
+    while deficit > 0:
+        # Find eligible deques (those that still have surplus)
+        candidates = [i for i in range(n) if allocation[i] < sizes[i]]
+        if not candidates:
+            # No more surplus available
+            break
+
+        # Compute how much we could add equally
+        take_each = math.ceil(deficit / len(candidates))
+
+        for i in candidates:
+            if deficit == 0:
+                break
+            possible = sizes[i] - allocation[i]
+            take = min(take_each, possible, deficit)
+            allocation[i] += take
+            deficit -= take
+
+    # Sample accordingly
+    result = []
+    for deque_items, a in zip(memory, allocation):
+        result.extend(random.sample(deque_items, a))
+
+    return result
