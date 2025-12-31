@@ -54,9 +54,12 @@ class DuelingQNetwork(nn.Module):
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
+        # Log Loss to TensorBoard
+        if self.writer:
+            self.writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
-        if writer and (game_number % 100 == 0):
-            self.log_weights(writer, name, game_number)
+            if game_number % 100 == 0:
+                self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()  # Return loss for logging

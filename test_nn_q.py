@@ -50,7 +50,7 @@ game_number = []
 game_counter = 0
 
 games_per_training_batch = 120
-num_training_batches = 200
+num_training_batches = 1000
 num_training_eval_games = 50
 
 num_evaluation_batches = 2

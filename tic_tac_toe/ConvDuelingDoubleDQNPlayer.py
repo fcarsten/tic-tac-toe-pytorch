@@ -1,3 +1,4 @@
+import random
 from collections import OrderedDict
 
 import numpy as np
@@ -73,14 +74,22 @@ class ConvDuelingQNetwork(nn.Module):
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
-    def train_batch(self, inputs, targets, writer=None, name=None, game_number=None):
+    def train_batch(self, inputs, expected_q, actions, writer=None, name=None, game_number=None):
         self.optimizer.zero_grad()
-        q_pred = self.forward(inputs)
-        loss = self.loss_fn(q_pred, targets)
+
+        # Get all Q-values, then pick only the ones for the actions taken
+        q_pred_all = self.forward(inputs)
+        q_pred = q_pred_all.gather(1, actions.unsqueeze(-1)).squeeze(-1)
+
+        loss = self.loss_fn(q_pred, expected_q)
         loss.backward()
 
-        if writer and game_number and (game_number % 100 == 0):
-            self.log_weights(writer, name, game_number)
+        # Log Loss to TensorBoard
+        if writer:
+            writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
+
+            if game_number % 100 == 0:
+                self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()
@@ -103,3 +112,53 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros(1,3,3,3, device=self.device)
             self.writer.add_graph(self.nn.features, dummy_input)
+
+
+    def _train_from_replay(self):
+        if len(self.memory) < self.batch_size:
+            return
+
+        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        # torch.stack is perfect here: it turns [(3,3,3), (3,3,3)...] into (Batch, 3, 3, 3)
+        states_v = torch.stack(states).to(self.device)
+        actions_v = torch.tensor(actions, device=self.device, dtype=torch.long)
+        rewards_v = torch.tensor(rewards, device=self.device, dtype=torch.float)
+        dones_v = torch.tensor(dones, device=self.device, dtype=torch.bool)
+
+        # 1. Get current Q values
+        current_qs = self.nn(states_v)
+        # Extract the Q-values for the specific actions taken
+        current_q_values = current_qs.gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
+
+        # 2. Get Next-State values from TARGET Network
+        with torch.no_grad():
+            next_q_max = torch.zeros(self.batch_size, device=self.device)
+
+            # Filter out 'None' or terminal states
+            non_final_mask = torch.tensor([ns is not None for ns in next_states], device=self.device)
+
+            if non_final_mask.any():
+                # Filter and stack next_states
+                non_final_next_states = torch.stack([ns for ns in next_states if ns is not None]).to(self.device)
+                target_q_estimates = self.target_nn(non_final_next_states)
+                next_q_max[non_final_mask] = target_q_estimates.max(dim=1)[0]
+
+        # 3. Bellman Equation: r + gamma * max_Q(s') * (1 - done)
+        # Using 'not done' logic ensures terminal states have a future value of 0
+        expected_q = rewards_v + (self.reward_discount * next_q_max * (~dones_v).float())
+
+        # 4. Perform optimization
+        # Note: We pass the gathered current_q_values and expected_q to the optimizer
+        # This is more standard than cloning the whole matrix
+        loss = self.nn.train_batch(states_v, expected_q, actions_v,
+                                   writer=self.writer, name=self.name,
+                                   game_number=self.game_number)
+        # Log Loss to TensorBoard
+        if self.writer:
+            self.writer.add_scalar(f'{self.name}/Training_Loss', loss, self.game_number)
+
+        # Logging and Target Sync...
+        if self.move_step % self.target_update_freq == 0:
+            self._update_target_network()

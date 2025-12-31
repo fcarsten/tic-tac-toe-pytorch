@@ -45,6 +45,9 @@ class QNetwork(nn.Module):
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
+        # Log Loss to TensorBoard
+        if self.writer:
+            self.writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
         self.log_weights(writer, name, game_number)
 
