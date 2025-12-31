@@ -95,7 +95,7 @@ class NNQPlayer(Player):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
-            self.writer.add_graph(self.nn.feature_layer, dummy_input)
+            self.writer.add_graph(self.nn, dummy_input)
 
     def new_game(self, side: int):
         self.game_number = self.game_number + 1
