@@ -48,7 +48,7 @@ class ConvDuelingQNetwork(nn.Module):
         ]))
 
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.SmoothL1Loss()
         self.to(device)
 
     def forward(self, x):
@@ -83,6 +83,7 @@ class ConvDuelingQNetwork(nn.Module):
 
         loss = self.loss_fn(q_pred, expected_q)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
 
         # Log Loss to TensorBoard
         if writer:
@@ -97,6 +98,10 @@ class ConvDuelingQNetwork(nn.Module):
 
 
 class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
+
+    # def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", random_move_decrease: float = 0.9995,
+    #              learning_rate =5e-5, **kwargs):
+
     def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", **kwargs):
         super().__init__(name, **kwargs)
         # Override networks with Dueling architecture
@@ -111,7 +116,7 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros(1,3,3,3, device=self.device)
-            self.writer.add_graph(self.nn.features, dummy_input)
+            self.writer.add_graph(self.nn, dummy_input)
 
 
     def _train_from_replay(self):
