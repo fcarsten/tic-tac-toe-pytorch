@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
+from util import board_state_to_cnn_input
 
 
 class ConvDuelingQNetwork(nn.Module):
@@ -103,7 +104,6 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
                  random_move_decrease: float = 0.9995, target_update_freq: int = 2000, learning_rate =1e-5, **kwargs):
         super().__init__(name, reward_discount= reward_discount, target_update_freq=target_update_freq,
                          random_move_decrease=random_move_decrease, learning_rate =learning_rate, **kwargs)
-        # Override networks with Dueling architecture
 
     def _create_network(self, learning_rate) -> nn.Module:
         return ConvDuelingQNetwork(learning_rate, self.device)
