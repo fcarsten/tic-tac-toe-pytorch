@@ -197,4 +197,4 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
 
         # Logging and Target Sync...
         if self.move_step % self.target_update_freq == 0:
-            self._update_target_network()
+            self.target_nn.load_state_dict(self.nn.state_dict())

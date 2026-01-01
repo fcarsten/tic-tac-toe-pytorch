@@ -53,7 +53,7 @@ class DoubleDQNPlayer(DQNPlayer):
 
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
-            self._update_target_network()
+            self.target_nn.load_state_dict(self.nn.state_dict())
             if self.writer:
                 # Log that a sync happened
                 self.writer.add_scalar(f'{self.name}/Target_Sync_Event', 1, self.move_step)

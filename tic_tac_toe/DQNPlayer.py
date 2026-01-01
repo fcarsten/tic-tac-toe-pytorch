@@ -15,10 +15,6 @@ class DQNPlayer(ReplayNNQPlayer):
 
         self.target_update_freq = target_update_freq
 
-    def _update_target_network(self):
-        """Syncs target network weights with the main policy network."""
-        self.target_nn.load_state_dict(self.nn.state_dict())
-
     def _train_from_replay(self):
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
@@ -61,7 +57,7 @@ class DQNPlayer(ReplayNNQPlayer):
 
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
-            self._update_target_network()
+            self.target_nn.load_state_dict(self.nn.state_dict())
             if self.writer:
                 # Log that a sync happened
                 self.writer.add_scalar(f'{self.name}/Target_Sync_Event', 1, self.move_step)
