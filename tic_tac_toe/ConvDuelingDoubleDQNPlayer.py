@@ -85,6 +85,15 @@ class ConvDuelingQNetwork(nn.Module):
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
+    def get_regularization_loss(self, l1_beta=1e-5, l2_beta=1e-5):
+        l1_loss = 0
+        l2_loss = 0
+        for name, param in self.named_parameters():
+            if 'weight' in name:
+                l1_loss += torch.sum(torch.abs(param))
+                l2_loss += torch.sum(param ** 2)
+        return (l1_beta * l1_loss) + (l2_beta * l2_loss)
+
     def train_batch(self, inputs, expected_q, actions, writer=None, name=None, game_number=None):
         self.optimizer.zero_grad()
 
@@ -92,19 +101,28 @@ class ConvDuelingQNetwork(nn.Module):
         q_pred_all = self.forward(inputs)
         q_pred = q_pred_all.gather(1, actions.unsqueeze(-1)).squeeze(-1)
 
-        loss = self.loss_fn(q_pred, expected_q)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+        td_loss = self.loss_fn(q_pred, expected_q)
+
+        # 2. L1L2 Regularization Loss
+        reg_loss = self.get_regularization_loss(l1_beta=1e-5, l2_beta=1e-5)
+
+        # 3. Total Loss
+        total_loss = td_loss + reg_loss
+        total_loss.backward()
 
         # Log Loss to TensorBoard
         if writer:
-            writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
+            writer.add_scalar(f'{name}/TD_Loss', td_loss, game_number)
+            writer.add_scalar(f'{name}/Reg_Loss', reg_loss, game_number)
 
             if game_number % 100 == 0:
                 self.log_weights(writer, name, game_number)
 
+
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+
         self.optimizer.step()
-        return loss.item()
+        return total_loss.item()
 
 
 
@@ -114,7 +132,7 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
     #              learning_rate =5e-5, **kwargs):
 
     def __init__(self, name: str = "ConvDuelingDoubleDQNPlayer", reward_discount: float = 0.9,
-                 random_move_decrease: float = 0.9995, target_update_freq: int = 2000, learning_rate =1e-5, **kwargs):
+                 random_move_decrease: float = 0.9999, target_update_freq: int = 3000, learning_rate =1e-5, **kwargs):
         super().__init__(name, reward_discount= reward_discount, target_update_freq=target_update_freq,
                          random_move_decrease=random_move_decrease, learning_rate =learning_rate, **kwargs)
 
