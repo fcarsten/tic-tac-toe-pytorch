@@ -1,11 +1,11 @@
-import random
 import torch
 import numpy as np
-from collections import deque
+import torch
+
 from tic_tac_toe.Board import Board, EMPTY
-from tic_tac_toe.Player import GameResult
 from tic_tac_toe.EGreedyNNQPlayer import EGreedyNNQPlayer
-from util import sample_balanced
+from tic_tac_toe.Player import GameResult
+from tic_tac_toe.ReplayMemory import ReplayMemory
 
 
 class ReplayNNQPlayer(EGreedyNNQPlayer):
@@ -13,7 +13,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
                  buffer_size: int = 10000, **kwargs):
         super().__init__(name, **kwargs)
         self.next_state_log = None
-        self.memory = [deque(maxlen=buffer_size // 3) for _ in range(3)]
+        self.memory = ReplayMemory(buffer_size)
         self.batch_size = batch_size
 
     def move(self, board: Board):
@@ -75,10 +75,10 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
                 s_next = None  # Terminal
                 done = True
 
-            self.memory[result.value-1].append((s, a, reward, s_next, done))
+            self.memory.push((s, a, reward, s_next, done), result.value-1)
 
         # Sample and Train
-        if sum(len(d) for d in self.memory) >= self.batch_size:
+        if len(self.memory) >= self.batch_size:
             self._train_from_replay()
 
         self.random_move_prob *= self.random_move_decrease
@@ -89,7 +89,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
 
 
     def _train_from_replay(self):
-        batch = sample_balanced(self.memory, self.batch_size)
+        batch = self.memory.sample( self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
         states_v = torch.stack(states).to(self.device)

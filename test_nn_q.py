@@ -50,14 +50,14 @@ game_number = []
 game_counter = 0
 
 games_per_training_batch = 120
-num_training_batches = 1000
+num_training_batches = 750
 num_training_eval_games = 50
 
 num_evaluation_batches = 2
 games_per_evaluation_batch = 100
 
 # nnplayer rndplayer mm_player
-p2 = convDuelingDoubleDQNPlayer
+p2 = replayNNQPlayer
 p1 = rnd_mm_player
 
 # Define a descriptive name for the current experiment

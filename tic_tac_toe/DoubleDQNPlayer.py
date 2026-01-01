@@ -1,16 +1,13 @@
 import torch
-import random
 
 from tic_tac_toe.DQNPlayer import DQNPlayer
-from util import sample_balanced
-
 
 class DoubleDQNPlayer(DQNPlayer):
     def __init__(self, name: str = "DoubleDQNPlayer", **kwargs):
         super().__init__(name, **kwargs)
 
     def _train_from_replay(self):
-        batch = sample_balanced(self.memory, self.batch_size)
+        batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
         states_v = torch.stack(states).to(self.device)

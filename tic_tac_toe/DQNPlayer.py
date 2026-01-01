@@ -1,9 +1,7 @@
-import torch
-import random
 import copy
+import torch
 
 from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
-from util import sample_balanced
 
 
 class DQNPlayer(ReplayNNQPlayer):
@@ -22,7 +20,7 @@ class DQNPlayer(ReplayNNQPlayer):
         self.target_nn.load_state_dict(self.nn.state_dict())
 
     def _train_from_replay(self):
-        batch = sample_balanced(self.memory, self.batch_size)
+        batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
         states_v = torch.stack(states).to(self.device)

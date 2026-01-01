@@ -1,15 +1,11 @@
-import random
 from collections import OrderedDict
 
 import numpy as np
-from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from collections import OrderedDict
 
-from util import board_state_to_cnn_input, sample_balanced
+from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
 
 
 class ConvDuelingQNetwork(nn.Module):
@@ -123,10 +119,10 @@ class ConvDuelingDoubleDQNPlayer(DoubleDQNPlayer):
 
 
     def _train_from_replay(self):
-        if sum(len(d) for d in self.memory) < self.batch_size:
+        if len(self.memory) < self.batch_size:
             return
 
-        batch = sample_balanced(self.memory, self.batch_size)
+        batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
         # torch.stack is perfect here: it turns [(3,3,3), (3,3,3)...] into (Batch, 3, 3, 3)
