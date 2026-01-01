@@ -91,7 +91,8 @@ class DeepExpDoubleDuelQPlayer(Player):
     def __init__(self, name: str, reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
                  loss_value: float = -10.0, learning_rate: float = 0.01, training: bool = True,
                  random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, batch_size=60,
-                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu")):
+                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu"),
+                 writer: SummaryWriter=None):
         super().__init__()
         self.name = name
         self.device = device
@@ -122,7 +123,7 @@ class DeepExpDoubleDuelQPlayer(Player):
         self.board_position_log = []
         self.action_log = []
         self.side = None
-        self.writer = SummaryWriter(log_dir=f"logs/{name}")
+        self.writer = writer
 
     def log_graph(self):
         if self.writer:
@@ -254,5 +255,8 @@ class DeepExpDoubleDuelQPlayer(Player):
         self.q_net.optimizer.step()
 
         if self.writer:
-            self.writer.add_scalar("Q_Loss", loss.item(), self.game_counter)
-            self.writer.add_scalar("Random_Move_Probability", self.random_move_prob, self.game_counter)
+            if self.game_counter % 100 == 0:
+                self.q_net.log_weights(self.writer, self.name, self.game_counter)
+
+            self.writer.add_scalar(f'{self.name}/Training_Loss', loss.item(), self.game_counter)
+            self.writer.add_scalar(f'{self.name}/Random_Move_Probability', self.random_move_prob, self.game_counter)
