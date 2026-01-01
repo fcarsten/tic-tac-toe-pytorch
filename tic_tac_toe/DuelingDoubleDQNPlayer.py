@@ -32,7 +32,7 @@ class DuelingQNetwork(nn.Module):
         ]))
 
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.SmoothL1Loss()
         self.to(device)
 
     def forward(self, x):

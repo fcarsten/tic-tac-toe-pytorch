@@ -1,12 +1,10 @@
 from collections import OrderedDict
 
-import numpy as np
 import matplotlib.pyplot as plt
-import io
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter  # Added
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
@@ -24,8 +22,8 @@ class QNetwork(nn.Module):
             ('Output_Layer', nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE))
         ])).to(device)
 
-        self.optimizer = optim.SGD(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.MSELoss()
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.loss_fn = nn.SmoothL1Loss()
 
     def forward(self, x):
         return self.feature_layer(x)
@@ -65,7 +63,7 @@ class NNQPlayer(Player):
 
     def __init__(self, name: str = "NNQPlayer", reward_discount: float = 0.95,
                  win_value: float = 1.0, draw_value: float = 0.0,
-                 loss_value: float = -1.0, learning_rate: float = 0.01,
+                 loss_value: float = -1.0, learning_rate: float = 0.001,
                  training: bool = True, device: torch.device = torch.device("cpu")):  # Added writer
         super().__init__()
         self.device = device
