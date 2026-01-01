@@ -17,35 +17,46 @@ class ConvDuelingQNetwork(nn.Module):
         # 1. Convolutional Feature Extractor
         # Assuming input_shape is (C, H, W)
         self.features = nn.Sequential(OrderedDict([
-            ('Conv1', nn.Conv2d(input_shape[0], 32, kernel_size=3, padding=1)),
-            ('LN1', nn.GroupNorm(1, 32)),  # GroupNorm with 1 group is LayerNorm for CNNs
+            ('Conv1', nn.Conv2d(3, 128, kernel_size=3, padding=1)),
             ('ReLU1', nn.ReLU()),
-            ('Conv2', nn.Conv2d(32, 64, kernel_size=3, padding=1)),
-            ('LN2', nn.GroupNorm(1, 64)),
+            ('Conv2', nn.Conv2d(128, 128, kernel_size=3, padding=1)),
             ('ReLU2', nn.ReLU()),
+            ('Conv3', nn.Conv2d(128, 64, kernel_size=3, padding=1)),
+            ('ReLU3', nn.ReLU()),
             ('Flatten', nn.Flatten())
         ]))
-        # Calculate the size of the flattened features for the linear layers
-        # This helper ensures we don't have to hard-code the linear input size
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, *input_shape)
-            n_flatten = self.features(dummy_input).shape[1]
+
+        # The "Shared" dense layer before the Dueling split
+        self.shared_dense = nn.Sequential(
+            nn.Linear(64 * 3 * 3, 243),  # Larger capacity
+            nn.ReLU()
+        )
+        # # Calculate the size of the flattened features for the linear layers
+        # # This helper ensures we don't have to hard-code the linear input size
+        # with torch.no_grad():
+        #     dummy_input = torch.zeros(1, *input_shape)
+        #     n_flatten = self.shared_dense(dummy_input).shape[1]
 
         # 2. Value stream (State Value V(s))
         self.value_stream = nn.Sequential(OrderedDict([
-            ('Value_Linear', nn.Linear(n_flatten, 128)),
+            ('Value_Linear', nn.Linear(243, 128)),
             ('Value_ReLU', nn.ReLU()),
             ('Value_Output', nn.Linear(128, 1))
         ]))
 
         # 3. Advantage stream (Action Advantage A(s, a))
         self.advantage_stream = nn.Sequential(OrderedDict([
-            ('Advantage_Linear', nn.Linear(n_flatten, 128)),
+            ('Advantage_Linear', nn.Linear(243, 128)),
             ('Advantage_ReLU', nn.ReLU()),
             ('Advantage_Output', nn.Linear(128, 9))  # 9 actions
         ]))
 
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        # For explicit initialization
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+
         self.loss_fn = nn.SmoothL1Loss()
         self.to(device)
 
@@ -55,8 +66,10 @@ class ConvDuelingQNetwork(nn.Module):
             x = x.unsqueeze(0)
 
         feat = self.features(x)
-        value = self.value_stream(feat)
-        advantage = self.advantage_stream(feat)
+        shared = self.shared_dense(feat)
+
+        value = self.value_stream(shared)
+        advantage = self.advantage_stream(shared)
 
         # Dueling Logic: Q(s,a) = V(s) + (A(s,a) - Mean(A(s,a)))
         q_values = value + (advantage - advantage.mean(dim=1, keepdim=True))
