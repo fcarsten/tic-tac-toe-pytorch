@@ -1,12 +1,11 @@
-import random
-from typing import Tuple
-
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+import random
+from typing import List, Tuple
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
@@ -23,7 +22,7 @@ class DuelingFusion(nn.Module):
 
 
 class QNetwork(nn.Module):
-    def __init__(self, learning_rate: float, device: torch.device, beta: float = 0.00001):
+    def __init__(self, learning_rate: float, device: torch.device, beta: float = 1e-6):
         super(QNetwork, self).__init__()
         self.device = device
 
@@ -31,11 +30,11 @@ class QNetwork(nn.Module):
         # This appears as a single "conv_block" node in TensorBoard
         self.conv_block = nn.Sequential(
             nn.Conv2d(3, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.LeakyReLU(0.01),
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.LeakyReLU(0.01),
             nn.Conv2d(128, 64, kernel_size=3, padding=1),
-            nn.ReLU()
+            nn.LeakyReLU(0.01)
         )
 
         # 2. Group Feature Extraction (Linear)
@@ -43,7 +42,7 @@ class QNetwork(nn.Module):
         self.feature_block = nn.Sequential(
             nn.Flatten(),
             nn.Linear(flattened_size, BOARD_SIZE * 3 * 9),
-            nn.ReLU()
+            nn.LeakyReLU(0.01)
         )
 
         # 3. Dueling Heads
@@ -55,7 +54,9 @@ class QNetwork(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
         self.to(self.device)
-        self.optimizer = optim.SGD(self.parameters(), lr=learning_rate, weight_decay=beta)
+
+        # AdamW is better for weight decay stability
+        self.optimizer = optim.AdamW(self.parameters(), lr=learning_rate, weight_decay=beta)
 
     def forward(self, x: torch.Tensor):
         # The forward pass becomes much cleaner
@@ -99,14 +100,10 @@ class ReplayBuffer:
 
 
 class DeepExpDoubleDuelQPlayer(Player):
-    """
-    Tic Tac Toe player based on a Dueling Double Deep Q-Network.
-    """
-
-    def __init__(self, name: str, reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
-                 loss_value: float = -10.0, learning_rate: float = 0.01, training: bool = True,
-                 random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, batch_size=60,
-                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu"),
+    def __init__(self, name: str, reward_discount: float = 0.95, win_value: float = 1.0, draw_value: float = 0.0,
+                 loss_value: float = -1.0, learning_rate: float = 0.001, training: bool = True,
+                 random_move_prob: float = 0.5, random_move_decrease: float = 0.9999, batch_size=64,
+                 pre_training_games: int = 100, tau: float = 0.005, device: torch.device = torch.device("cpu"),
                  writer: SummaryWriter=None):
         super().__init__()
         self.name = name
@@ -125,9 +122,9 @@ class DeepExpDoubleDuelQPlayer(Player):
         self.game_counter = 0
         self.pre_training_games = pre_training_games
 
-        # Networks initialized on the specific device
-        self.q_net = QNetwork(learning_rate, self.device)
-        self.target_net = QNetwork(learning_rate, self.device)
+        # Adjusted beta to be much smaller for +/- 1 rewards
+        self.q_net = QNetwork(learning_rate, self.device, beta=1e-7)
+        self.target_net = QNetwork(learning_rate, self.device, beta=1e-7)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
         # Replay Buffers
@@ -265,10 +262,14 @@ class DeepExpDoubleDuelQPlayer(Player):
 
                 target_q_values[next_states_mask] += self.reward_discount * max_next_q
 
-        # Optimization step
+        # Using MSE for stronger gradients with small +/- 1 rewards
         loss = F.mse_loss(current_q_values, target_q_values)
         self.q_net.optimizer.zero_grad()
         loss.backward()
+
+        # Increased grad clipping threshold slightly for +/- 1
+        torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=5.0)
+
         self.q_net.optimizer.step()
 
         if self.writer:
