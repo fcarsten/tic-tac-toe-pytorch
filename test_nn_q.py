@@ -1,25 +1,24 @@
 import os
 import time
 
+import matplotlib.pyplot as plt
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from tic_tac_toe import RndMinMaxAgent
-from tic_tac_toe.Board import Board, GameResult, CROSS, NAUGHT, EMPTY
-from tic_tac_toe.ConvDuelingDoubleDQNPlayer import ConvDuelingDoubleDQNPlayer
+from tic_tac_toe.Board import Board
 from tic_tac_toe.DQNPlayer import DQNPlayer
+from tic_tac_toe.DeepExpDoubleDuelQPlayer import DeepExpDoubleDuelQPlayer
 from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
 from tic_tac_toe.DuelingDoubleDQNPlayer import DuelingDoubleDQNPlayer
-from tic_tac_toe.RandomPlayer import RandomPlayer
-from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
-from util import print_board, play_game, evaluate_batch
+from tic_tac_toe.EGreedyNNQPlayer import EGreedyNNQPlayer
 # from tic_tac_toe.RandomPlayer import RandomPlayer
 from tic_tac_toe.MinMaxAgent import MinMaxAgent
+from tic_tac_toe.RandomPlayer import RandomPlayer
+from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
 from tic_tac_toe.RndMinMaxAgent import RndMinMaxAgent
 # from tic_tac_toe.TabularQPlayer import TQPlayer
 from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
-from tic_tac_toe.EGreedyNNQPlayer import EGreedyNNQPlayer
-import matplotlib.pyplot as plt
+from util import evaluate_batch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -37,8 +36,7 @@ dqn_player = DQNPlayer("DQNPlayer", device= device)
 replayNNQPlayer = ReplayNNQPlayer("ReplayNNQPlayer", device= device)
 double_dqn_player = DoubleDQNPlayer("DoubleDQNPlayer", device= device)
 dueling_double_player = DuelingDoubleDQNPlayer("DuelingDoubleDQNPlayer", device= device)
-convDuelingDoubleDQNPlayer = ConvDuelingDoubleDQNPlayer("ConvDuelingDoubleDQNPlayer", device= device)
-
+deepExpDoubleDuelQPlayer = DeepExpDoubleDuelQPlayer("DeepExpDoubleDuelQPlayer", device= device, draw_value=0.0)
 # nnplayer2 = NNQPlayer("NNQPlayer2", device= device, writer=writer)
 #
 
@@ -49,15 +47,15 @@ draws = []
 game_number = []
 game_counter = 0
 
-games_per_training_batch = 120
-num_training_batches = 750
+games_per_training_batch = 100
+num_training_batches = 500
 num_training_eval_games = 50
 
 num_evaluation_batches = 2
 games_per_evaluation_batch = 100
 
 # nnplayer rndplayer mm_player
-p2 = replayNNQPlayer
+p2 = deepExpDoubleDuelQPlayer
 p1 = rnd_mm_player
 
 # Define a descriptive name for the current experiment
