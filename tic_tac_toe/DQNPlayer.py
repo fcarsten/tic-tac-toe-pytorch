@@ -24,7 +24,7 @@ class DQNPlayer(ReplayNNQPlayer):
         rewards_v = torch.tensor(rewards, device=self.device, dtype=torch.float)
 
         # 1. Get current Q values from the Policy Network
-        current_qs = self.q_net(states_v)
+        current_qs = self.nn(states_v)
 
         # 2. Get Next-State values from the TARGET Network
         with torch.no_grad():
@@ -48,7 +48,7 @@ class DQNPlayer(ReplayNNQPlayer):
         targets[torch.arange(self.batch_size), actions_v] = expected_q
 
         # 4. Perform optimization
-        self.q_net.train_batch(states_v, targets, writer=self.writer,
+        self.nn.train_batch(states_v, targets, writer=self.writer,
                                name=self.name, game_number=self.game_number)
 
         if self.writer:
@@ -57,7 +57,7 @@ class DQNPlayer(ReplayNNQPlayer):
 
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
-            self.target_nn.load_state_dict(self.q_net.state_dict())
+            self.target_nn.load_state_dict(self.nn.state_dict())
             if self.writer:
                 # Log that a sync happened
                 self.writer.add_scalar(f'{self.name}/Target_Sync_Event', 1, self.move_step)

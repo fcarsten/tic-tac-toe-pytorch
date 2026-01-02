@@ -20,7 +20,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         # 1. Get current Q-values
         nn_input = self.board_state_to_nn_input(board.state)
         with torch.no_grad():
-            q_values = self.q_net(nn_input).squeeze(0)
+            q_values = self.nn(nn_input).squeeze(0)
 
         # Move-level logging (use q_values for logging)
         if self.writer and self.training and self.move_step % 500 == 0:
@@ -90,13 +90,13 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         # Calculate Targets
         with torch.no_grad():
             # Get current brain's opinion on ALL states in batch
-            current_qs = self.q_net(states_v)
+            current_qs = self.nn(states_v)
 
             # For next states, find the Max Q
             next_q_max = torch.zeros(self.batch_size, device=self.device)
             for j, ns in enumerate(next_states):
                 if ns is not None:
-                    next_q_max[j] = torch.max(self.q_net(ns.to(self.device)))
+                    next_q_max[j] = torch.max(self.nn(ns.to(self.device)))
 
         # Bellman Equation: r + gamma * maxQ(s')
         targets = current_qs.clone()
@@ -106,6 +106,6 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
             else:
                 targets[j, actions_v[j]] = rewards_v[j] + self.reward_discount * next_q_max[j]
 
-        self.q_net.train_batch(states_v, targets, writer=self.writer,
+        self.nn.train_batch(states_v, targets, writer=self.writer,
                                name=self.name, game_number=self.game_number)
 
