@@ -12,47 +12,61 @@ from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
 
 
-class QNetwork(nn.Module):
+class DuelingFusion(nn.Module):
     """
-    PyTorch implementation of the Dueling Q-Network for Tic Tac Toe.
+    Groups the Dueling math operations into one named node.
+    Q(s,a) = V(s) + (A(s,a) - mean(A(s,a)))
     """
 
+    def forward(self, value, advantage):
+        return value + (advantage - advantage.mean(dim=1, keepdim=True))
+
+
+class QNetwork(nn.Module):
     def __init__(self, learning_rate: float, device: torch.device, beta: float = 0.00001):
         super(QNetwork, self).__init__()
         self.device = device
 
-        # Architecture matching the original Conv layers
-        self.conv1 = nn.Conv2d(3, 128, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(128, 64, kernel_size=3, padding=1)
+        # 1. Group Convolutional Layers
+        # This appears as a single "conv_block" node in TensorBoard
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(3, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.ReLU()
+        )
 
+        # 2. Group Feature Extraction (Linear)
         flattened_size = 64 * 3 * 3
-        self.fc1 = nn.Linear(flattened_size, BOARD_SIZE * 3 * 9)
+        self.feature_block = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(flattened_size, BOARD_SIZE * 3 * 9),
+            nn.ReLU()
+        )
 
-        # Dueling Heads
+        # 3. Dueling Heads
         self.value_head = nn.Linear(BOARD_SIZE * 3 * 9, 1)
         self.advantage_head = nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE)
 
-        # Move model to device before creating the optimizer
-        self.to(self.device)
+        # 4. Operations
+        self.dueling_fusion = DuelingFusion()
+        self.softmax = nn.Softmax(dim=1)
 
-        # Optimizer with L2 regularization (weight_decay) via beta
+        self.to(self.device)
         self.optimizer = optim.SGD(self.parameters(), lr=learning_rate, weight_decay=beta)
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+    def forward(self, x: torch.Tensor):
+        # The forward pass becomes much cleaner
+        x = self.conv_block(x)
+        features = self.feature_block(x)
 
-        x = torch.flatten(x, 1)
-        x = F.relu(self.fc1(x))
+        value = self.value_head(features)
+        advantage = self.advantage_head(features)
 
-        value = self.value_head(x)
-        advantage = self.advantage_head(x)
-
-        # Dueling DQN formula
-        q_values = value + (advantage - advantage.mean(dim=1, keepdim=True))
-        probabilities = F.softmax(q_values, dim=1)
+        q_values = self.dueling_fusion(value, advantage)
+        probabilities = self.softmax(q_values)
 
         return q_values, probabilities
 
