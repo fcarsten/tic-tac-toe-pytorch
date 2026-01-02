@@ -6,11 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
-from tic_tac_toe.Player import Player, GameResult
-from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
+from tic_tac_toe.Player import GameResult
+from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
 
 
 class DuelingFusion(nn.Module):
@@ -82,51 +81,28 @@ class QNetwork(nn.Module):
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
 
-class ReplayBuffer:
-    """ Manages the Experience Replay buffer. """
-
-    def __init__(self, buffer_size=3000):
-        self.buffer = []
-        self.buffer_size = buffer_size
-
-    def add(self, experience: list):
-        if len(self.buffer) + 1 >= self.buffer_size:
-            self.buffer.pop(0)
-        self.buffer.append(experience)
-
-    def sample(self, size) -> list:
-        size = min(len(self.buffer), size)
-        return random.sample(self.buffer, size)
-
-
-class DeepExpDoubleDuelQPlayer(NNQPlayer):
+class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
     """
     Tic Tac Toe player based on a Dueling Double Deep Q-Network.
     """
 
     def __init__(self, name: str, reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
                  loss_value: float = -10.0, learning_rate: float = 0.01, training: bool = True,
-                 random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, batch_size=60,
-                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu")):
-        super().__init__(name, reward_discount, win_value, draw_value,
-                 loss_value, learning_rate, training, device)
+                 random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, random_min_prob: float=0.0,
+                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu"),
+                 batch_size: int = 60, buffer_size: int = 10000,
+                 ):
+        super().__init__(name, reward_discount=reward_discount, win_value=win_value, draw_value=draw_value,
+                         loss_value=loss_value, learning_rate=learning_rate, training=training, device=device,
+                         random_move_prob=random_move_prob, random_move_decrease=random_move_decrease,
+                         random_min_prob=random_min_prob, batch_size=batch_size, buffer_size=buffer_size)
         self.name = name
         self.device = device
 
         self.tau = tau
         self.batch_size = batch_size
 
-        self.random_move_prob = random_move_prob
-        self.random_move_decrease = random_move_decrease
-
         self.pre_training_games = pre_training_games
-
-        # Networks initialized on the specific device
-
-        # Replay Buffers
-        self.replay_buffer_win = ReplayBuffer()
-        self.replay_buffer_loss = ReplayBuffer()
-        self.replay_buffer_draw = ReplayBuffer()
 
         self.writer = None
 
@@ -199,45 +175,29 @@ class DeepExpDoubleDuelQPlayer(NNQPlayer):
         """ Handles training at the end of a game. """
         self.game_number += 1
 
-        if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
-                (result == GameResult.CROSS_WIN and self.side == CROSS):
-            reward = self.win_value
-        elif (result == GameResult.NAUGHT_WIN and self.side == CROSS) or \
-                (result == GameResult.CROSS_WIN and self.side == NAUGHT):
-            reward = self.loss_value
-        else:
-            reward = self.draw_value
+        reward = self.get_reward_value(result)
 
-        self.add_game_to_replay_buffer(reward)
+        self.add_game_to_replay_buffer(reward, result)
 
         if self.training and (self.game_number > self.pre_training_games):
             self.train_step()
             self.random_move_prob *= self.random_move_decrease
             self.soft_update()
 
-    def add_game_to_replay_buffer(self, reward: float):
+    def add_game_to_replay_buffer(self, reward: float, result: GameResult):
         """ Adds experience tuples to the appropriate buffer. """
         game_length = len(self.action_log)
-        if reward == self.win_value:
-            buffer = self.replay_buffer_win
-        elif reward == self.loss_value:
-            buffer = self.replay_buffer_loss
-        else:
-            buffer = self.replay_buffer_draw
 
         for i in range(game_length - 1):
-            buffer.add([self.state_log[i], self.action_log[i], self.state_log[i + 1], 0.0])
+            self.memory.push([self.state_log[i], self.action_log[i], self.state_log[i + 1], 0.0], result.value-1)
 
-        buffer.add([self.state_log[-1], self.action_log[-1], None, reward])
+        self.memory.push([self.state_log[-1], self.action_log[-1], None, reward], result.value-1)
 
     def train_step(self):
         """ Performs one Gradient Descent step on a batch. """
         self.q_net.train()
 
-        batch_third = self.batch_size // 3
-        samples = self.replay_buffer_win.sample(batch_third) + \
-                  self.replay_buffer_loss.sample(batch_third) + \
-                  self.replay_buffer_draw.sample(batch_third)
+        samples= self.memory.sample(self.batch_size)
 
         # FIXES START HERE: Converting list to np.array first suppresses the Performance Warning
         states = torch.as_tensor(np.array([self.board_state_to_nn_input(s[0]) for s in samples]),
