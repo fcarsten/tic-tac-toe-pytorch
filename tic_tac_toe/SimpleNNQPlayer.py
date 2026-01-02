@@ -84,16 +84,16 @@ class NNQPlayer(Player):
         self.next_value_log = []
         self.q_log = []
 
-        self.nn = self._create_network(learning_rate)
+        self._create_network(learning_rate)
 
-    def _create_network(self, learning_rate) -> nn.Module:
-        return QNetwork(learning_rate, self.device)
+    def _create_network(self, learning_rate):
+        self.nn= QNetwork(learning_rate, self.device)
 
     def log_graph(self):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros((1, BOARD_SIZE * 3), device=self.device)
-            self.writer.add_graph(self.nn, dummy_input)
+            self.writer.add_graph(self.q_net, dummy_input)
 
     def new_game(self, side: int):
         self.game_number = self.game_number + 1
@@ -116,7 +116,7 @@ class NNQPlayer(Player):
             b.reset()
 
             with torch.no_grad():
-                q_values = self.nn(self.board_state_to_nn_input(b.state))[0]
+                q_values = self.q_net(self.board_state_to_nn_input(b.state))[0]
                 max_q = torch.max(q_values).item()
                 # This should trend toward 0.0 as the model realizes the game is a draw
                 self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.game_number)
@@ -154,7 +154,7 @@ class NNQPlayer(Player):
         # Inference only, no graph
         with torch.no_grad():
             # Detached copy stored on the training device
-            q_values = self.nn(state_tensor.unsqueeze(0))[0].detach().clone()
+            q_values = self.q_net(state_tensor.unsqueeze(0))[0].detach().clone()
             if self.training:
                 self.q_log.append(q_values)
 
@@ -220,8 +220,8 @@ class NNQPlayer(Player):
         # Update only the Q-values for the actions that were actually taken
         targets[row_indices, actions] = bellman_targets
 
-        loss = self.nn.train_batch(states, targets, writer=self.writer,
-                                   name=self.name, game_number=self.game_number)
+        loss = self.q_net.train_batch(states, targets, writer=self.writer,
+                                      name=self.name, game_number=self.game_number)
 
         # Log Loss to TensorBoard
         if self.writer:

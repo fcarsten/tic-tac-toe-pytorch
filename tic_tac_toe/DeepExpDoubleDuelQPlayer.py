@@ -122,9 +122,6 @@ class DeepExpDoubleDuelQPlayer(NNQPlayer):
         self.pre_training_games = pre_training_games
 
         # Networks initialized on the specific device
-        self.q_net = QNetwork(learning_rate, self.device)
-        self.target_net = QNetwork(learning_rate, self.device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
 
         # Replay Buffers
         self.replay_buffer_win = ReplayBuffer()
@@ -132,6 +129,11 @@ class DeepExpDoubleDuelQPlayer(NNQPlayer):
         self.replay_buffer_draw = ReplayBuffer()
 
         self.writer = None
+
+    def _create_network(self, learning_rate):
+        self.q_net = QNetwork(learning_rate, self.device)
+        self.target_net = QNetwork(learning_rate, self.device)
+        self.target_net.load_state_dict(self.q_net.state_dict())
 
     def log_graph(self):
         if self.writer:

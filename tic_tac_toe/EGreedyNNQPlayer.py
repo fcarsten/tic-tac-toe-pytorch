@@ -34,7 +34,7 @@ class EGreedyNNQPlayer(NNQPlayer):
         # Inference only, no graph
         with torch.no_grad():
             # Detached copy stored on the training device
-            q_values = self.nn(state_tensor.unsqueeze(0))[0].detach().clone()
+            q_values = self.q_net(state_tensor.unsqueeze(0))[0].detach().clone()
             if self.training:
                 self.q_log.append(q_values)
 

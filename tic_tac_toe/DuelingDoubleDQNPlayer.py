@@ -69,6 +69,6 @@ class DuelingDoubleDQNPlayer(DoubleDQNPlayer):
         super().__init__(name, **kwargs)
         # Override networks with Dueling architecture
 
-    def _create_network(self, learning_rate) -> nn.Module:
-        return DuelingQNetwork(learning_rate, self.device)
+    def _create_network(self, learning_rate):
+        self.nn= DuelingQNetwork(learning_rate, self.device)
 

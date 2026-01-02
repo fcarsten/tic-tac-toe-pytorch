@@ -15,7 +15,7 @@ class DoubleDQNPlayer(DQNPlayer):
         rewards_v = torch.tensor(rewards, device=self.device, dtype=torch.float)
 
         # 1. Get current Q values from the Policy Network
-        current_qs = self.nn(states_v)
+        current_qs = self.q_net(states_v)
 
         # 2. Double DQN Logic for Next-State Values
         with torch.no_grad():
@@ -32,7 +32,7 @@ class DoubleDQNPlayer(DQNPlayer):
                 # --- DOUBLE DQN STEP ---
                 # A. Select the best action using the ONLINE Policy Network (self.nn)
                 # This prevents picking the "luckiest" value from the target network.
-                best_actions = self.nn(non_final_next_states).argmax(dim=1, keepdim=True)
+                best_actions = self.q_net(non_final_next_states).argmax(dim=1, keepdim=True)
 
                 # B. Evaluate that specific action using the TARGET Network (self.target_nn)
                 # Extract the Q-values for the 'best_actions' found by the online network
@@ -44,8 +44,8 @@ class DoubleDQNPlayer(DQNPlayer):
         targets[torch.arange(self.batch_size), actions_v] = expected_q
 
         # 4. Perform optimization
-        self.nn.train_batch(states_v, targets, writer=self.writer,
-                            name=self.name, game_number=self.game_number)
+        self.q_net.train_batch(states_v, targets, writer=self.writer,
+                               name=self.name, game_number=self.game_number)
 
         if self.writer:
             td_errors = torch.abs(expected_q - current_qs[torch.arange(self.batch_size), actions_v])
@@ -53,7 +53,7 @@ class DoubleDQNPlayer(DQNPlayer):
 
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
-            self.target_nn.load_state_dict(self.nn.state_dict())
+            self.target_nn.load_state_dict(self.q_net.state_dict())
             if self.writer:
                 # Log that a sync happened
                 self.writer.add_scalar(f'{self.name}/Target_Sync_Event', 1, self.move_step)
