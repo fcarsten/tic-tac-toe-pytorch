@@ -12,7 +12,6 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
     def __init__(self, name: str = "ReplayNNQPlayer", batch_size: int = 64,
                  buffer_size: int = 10000, **kwargs):
         super().__init__(name, **kwargs)
-        self.next_state_log = None
         self.memory = ReplayMemory(buffer_size)
         self.batch_size = batch_size
 
@@ -23,11 +22,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         with torch.no_grad():
             q_values = self.nn(nn_input).squeeze(0)
 
-        # 2. Your Alignment Logic: Skip first move to get S_{t+1}
-        if self.training and self.action_log:
-            # The current state is the "Next State" for the previous move
-            self.next_state_log.append(nn_input)
-            # Move-level logging (use q_values for logging)
+        # Move-level logging (use q_values for logging)
         if self.writer and self.training and self.move_step % 500 == 0:
             # self.log_q_heatmap(q_values, self.move_step)
             self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
@@ -54,10 +49,6 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         _, res, finished = board.move(move, self.side)
         return res, finished
 
-    def new_game(self, side: int):
-        super().new_game(side)
-        self.next_state_log = []  # Track the actual tensors
-
     def final_result(self, result: GameResult):
         if not self.training: return
 
@@ -68,8 +59,8 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
             s = self.state_log[i]
             a = self.action_log[i]
 
-            if i < len(self.next_state_log):
-                s_next = self.next_state_log[i]
+            if i < len(self.state_log):
+                s_next = self.state_log[i+1]
                 done = False
             else:
                 s_next = None  # Terminal
