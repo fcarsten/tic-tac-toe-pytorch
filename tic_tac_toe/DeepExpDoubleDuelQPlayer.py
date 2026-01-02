@@ -1,11 +1,12 @@
+import random
+from typing import Tuple
+
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-import random
-from typing import List, Tuple
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
@@ -158,10 +159,10 @@ class DeepExpDoubleDuelQPlayer(Player):
         else:
             self.q_net.eval()
             with torch.no_grad():
-                # Ensure input tensor is on the correct device
-                nn_input = torch.as_tensor(self.board_state_to_nn_input(board.state),
-                                           dtype=torch.float32, device=self.device).unsqueeze(0)
-                q_values, _ = self.q_net(nn_input)
+                # Fix: Convert to numpy array first for performance
+                nn_input = self.board_state_to_nn_input(board.state)
+                nn_input_tensor = torch.as_tensor(nn_input, dtype=torch.float32, device=self.device).unsqueeze(0)
+                q_values, _ = self.q_net(nn_input_tensor)
                 q_values = q_values.cpu().numpy()[0]
 
                 # Filter illegal moves
@@ -218,14 +219,14 @@ class DeepExpDoubleDuelQPlayer(Player):
                   self.replay_buffer_loss.sample(batch_third) + \
                   self.replay_buffer_draw.sample(batch_third)
 
-        # Prepare batch tensors on the correct device
-        states = torch.as_tensor([self.board_state_to_nn_input(s[0]) for s in samples],
+        # FIXES START HERE: Converting list to np.array first suppresses the Performance Warning
+        states = torch.as_tensor(np.array([self.board_state_to_nn_input(s[0]) for s in samples]),
                                  dtype=torch.float32, device=self.device)
-        actions = torch.as_tensor([s[1] for s in samples],
+        actions = torch.as_tensor(np.array([s[1] for s in samples]),
                                   dtype=torch.int64, device=self.device)
-        next_states_mask = torch.tensor([s[2] is not None for s in samples],
-                                        dtype=torch.bool, device=self.device)
-        rewards = torch.as_tensor([s[3] for s in samples],
+        next_states_mask = torch.as_tensor(np.array([s[2] is not None for s in samples]),
+                                           dtype=torch.bool, device=self.device)
+        rewards = torch.as_tensor(np.array([s[3] for s in samples]),
                                   dtype=torch.float32, device=self.device)
 
         # Current Q Values
@@ -236,7 +237,9 @@ class DeepExpDoubleDuelQPlayer(Player):
         with torch.no_grad():
             target_q_values = rewards.clone()
             if next_states_mask.any():
-                next_states = torch.as_tensor([self.board_state_to_nn_input(s[2]) for s in samples if s[2] is not None],
+                # Fix: Convert next states list to np.array
+                next_states = torch.as_tensor(np.array([self.board_state_to_nn_input(s[2])
+                                                        for s in samples if s[2] is not None]),
                                               dtype=torch.float32, device=self.device)
 
                 # Double DQN logic: Main Net selects action, Target Net evaluates it
