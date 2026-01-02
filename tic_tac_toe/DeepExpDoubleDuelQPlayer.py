@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
+from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
 
 
 class DuelingFusion(nn.Module):
@@ -98,7 +99,7 @@ class ReplayBuffer:
         return random.sample(self.buffer, size)
 
 
-class DeepExpDoubleDuelQPlayer(Player):
+class DeepExpDoubleDuelQPlayer(NNQPlayer):
     """
     Tic Tac Toe player based on a Dueling Double Deep Q-Network.
     """
@@ -106,23 +107,18 @@ class DeepExpDoubleDuelQPlayer(Player):
     def __init__(self, name: str, reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
                  loss_value: float = -10.0, learning_rate: float = 0.01, training: bool = True,
                  random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, batch_size=60,
-                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu"),
-                 writer: SummaryWriter=None):
-        super().__init__()
+                 pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu")):
+        super().__init__(name, reward_discount, win_value, draw_value,
+                 loss_value, learning_rate, training, device)
         self.name = name
         self.device = device
 
         self.tau = tau
         self.batch_size = batch_size
-        self.reward_discount = reward_discount
-        self.win_value = win_value
-        self.draw_value = draw_value
-        self.loss_value = loss_value
 
-        self.training = training
         self.random_move_prob = random_move_prob
         self.random_move_decrease = random_move_decrease
-        self.game_counter = 0
+
         self.pre_training_games = pre_training_games
 
         # Networks initialized on the specific device
@@ -135,10 +131,7 @@ class DeepExpDoubleDuelQPlayer(Player):
         self.replay_buffer_loss = ReplayBuffer()
         self.replay_buffer_draw = ReplayBuffer()
 
-        self.board_position_log = []
-        self.action_log = []
-        self.side = None
-        self.writer = writer
+        self.writer = None
 
     def log_graph(self):
         if self.writer:
@@ -161,14 +154,15 @@ class DeepExpDoubleDuelQPlayer(Player):
     def new_game(self, side: int):
         """ Resets game logs for a new match. """
         self.side = side
-        self.board_position_log = []
+        self.state_log = []
         self.action_log = []
 
     def move(self, board: Board) -> Tuple[GameResult, bool]:
         """ Chooses a move based on epsilon-greedy exploration. """
-        self.board_position_log.append(board.state.copy())
+        self.move_step += 1
+        self.state_log.append(board.state.copy())
 
-        if self.training and (self.game_counter < self.pre_training_games or np.random.rand() < self.random_move_prob):
+        if self.training and (self.game_number < self.pre_training_games or np.random.rand() < self.random_move_prob):
             move = board.random_empty_spot()
         else:
             self.q_net.eval()
@@ -177,6 +171,16 @@ class DeepExpDoubleDuelQPlayer(Player):
                 nn_input = self.board_state_to_nn_input(board.state)
                 nn_input_tensor = torch.as_tensor(nn_input, dtype=torch.float32, device=self.device).unsqueeze(0)
                 q_values, _ = self.q_net(nn_input_tensor)
+
+                if self.writer and self.move_step % 100 == 0:
+                    # self.log_q_heatmap(q_values, self.move_step)
+                    self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
+                    max_q = float(torch.max(q_values).item())
+                    avg_q = float(torch.mean(q_values).item())
+                    self.writer.add_scalar(f'{self.name}/Max_Q_Value', max_q, self.move_step)
+                    self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
+                    self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
+
                 q_values = q_values.cpu().numpy()[0]
 
                 # Filter illegal moves
@@ -191,7 +195,7 @@ class DeepExpDoubleDuelQPlayer(Player):
 
     def final_result(self, result: GameResult):
         """ Handles training at the end of a game. """
-        self.game_counter += 1
+        self.game_number += 1
 
         if (result == GameResult.NAUGHT_WIN and self.side == NAUGHT) or \
                 (result == GameResult.CROSS_WIN and self.side == CROSS):
@@ -204,7 +208,7 @@ class DeepExpDoubleDuelQPlayer(Player):
 
         self.add_game_to_replay_buffer(reward)
 
-        if self.training and (self.game_counter > self.pre_training_games):
+        if self.training and (self.game_number > self.pre_training_games):
             self.train_step()
             self.random_move_prob *= self.random_move_decrease
             self.soft_update()
@@ -220,9 +224,9 @@ class DeepExpDoubleDuelQPlayer(Player):
             buffer = self.replay_buffer_draw
 
         for i in range(game_length - 1):
-            buffer.add([self.board_position_log[i], self.action_log[i], self.board_position_log[i + 1], 0.0])
+            buffer.add([self.state_log[i], self.action_log[i], self.state_log[i + 1], 0.0])
 
-        buffer.add([self.board_position_log[-1], self.action_log[-1], None, reward])
+        buffer.add([self.state_log[-1], self.action_log[-1], None, reward])
 
     def train_step(self):
         """ Performs one Gradient Descent step on a batch. """
@@ -272,8 +276,8 @@ class DeepExpDoubleDuelQPlayer(Player):
         self.q_net.optimizer.step()
 
         if self.writer:
-            if self.game_counter % 100 == 0:
-                self.q_net.log_weights(self.writer, self.name, self.game_counter)
+            if self.game_number % 100 == 0:
+                self.q_net.log_weights(self.writer, self.name, self.game_number)
 
-            self.writer.add_scalar(f'{self.name}/Training_Loss', loss.item(), self.game_counter)
-            self.writer.add_scalar(f'{self.name}/Random_Move_Probability', self.random_move_prob, self.game_counter)
+            self.writer.add_scalar(f'{self.name}/Training_Loss', loss.item(), self.game_number)
+            self.writer.add_scalar(f'{self.name}/Random_Move_Probability', self.random_move_prob, self.game_number)
