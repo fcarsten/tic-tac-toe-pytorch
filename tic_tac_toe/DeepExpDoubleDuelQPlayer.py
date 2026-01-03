@@ -40,7 +40,10 @@ class DeepExpDoubleDuelQPlayerNetwork(nn.Module):
         )
 
         # 2. Group Feature Extraction (Linear)
-        flattened_size = 64 * 3 * 3
+        with torch.no_grad():
+            dummy = torch.zeros(1, 3, 3, 3)
+            flattened_size = self.conv_block(dummy).view(1, -1).size(1)
+
         self.feature_block = nn.Sequential(
             nn.Flatten(),
             nn.Linear(flattened_size, BOARD_SIZE * 3 * 9),
@@ -131,24 +134,25 @@ class DeepExpDoubleDuelQPlayer(DQNPlayer):
 
     def soft_update(self):
         """ Updates target network using tau factor. """
-        for target_param, main_param in zip(self.target_nn.parameters(), self.nn.parameters()):
-            target_param.data.copy_(self.tau * main_param.data + (1.0 - self.tau) * target_param.data)
+        with torch.no_grad():
+            for target_param, main_param in zip(self.target_nn.parameters(), self.nn.parameters()):
+                target_param.mul_(1.0 - self.tau).add_(self.tau * main_param)
 
     def move(self, board: Board) -> Tuple[GameResult, bool]:
         """ Chooses a move based on epsilon-greedy exploration. """
         self.move_step += 1
 
+        nn_input_tensor = self.board_state_to_nn_input(board.state)
         if self.training:
-            self.state_log.append(board.state.copy())
+            self.state_log.append(nn_input_tensor.detach())
 
         if self.training and (self.game_number < self.pre_training_games or np.random.rand() < self.random_move_prob):
             move = board.random_empty_spot()
         else:
-            self.nn.eval()
             with torch.no_grad():
-                nn_input_tensor = self.board_state_to_nn_input(board.state)
+
                 nn_input_tensor_unsqueezed = nn_input_tensor.unsqueeze(0)
-                q_values = self.nn(nn_input_tensor_unsqueezed)[0]
+                q_values, _ = self.nn(nn_input_tensor_unsqueezed)
 
                 if self.training and self.writer and self.move_step % 100 == 0:
                     # self.log_q_heatmap(q_values, self.move_step)
@@ -159,14 +163,16 @@ class DeepExpDoubleDuelQPlayer(DQNPlayer):
                     self.writer.add_scalar(f'{self.name}/Average_Q_In_Game', avg_q, self.move_step)
                     self.writer.add_scalar(f'{self.name}/Move_Confidence', max_q - avg_q, self.move_step)
 
-                q_values = q_values.cpu().numpy()[0]
+                q_values = q_values.squeeze(0)
 
-                # Filter illegal moves
-                for i in range(BOARD_SIZE):
-                    if not board.is_legal(i):
-                        q_values[i] = -np.inf
+                illegal_mask = torch.tensor(
+                    [not board.is_legal(i) for i in range(BOARD_SIZE)],
+                    dtype=torch.bool,
+                    device=q_values.device
+                )
 
-                move = np.argmax(q_values)
+                q_values = q_values.masked_fill(illegal_mask, -torch.inf)
+                move = int(torch.argmax(q_values).item())
 
         if self.training:
             self.action_log.append(move)
@@ -188,58 +194,81 @@ class DeepExpDoubleDuelQPlayer(DQNPlayer):
             self.soft_update()
 
     def add_game_to_replay_buffer(self, reward: float, result: GameResult):
-        """ Adds experience tuples to the appropriate buffer. """
+        """ Adds experience tuples to the replay buffer using tensor states. """
         game_length = len(self.action_log)
 
         for i in range(game_length - 1):
-            self.memory.push([self.state_log[i], self.action_log[i], self.state_log[i + 1], 0.0], result.value-1)
+            self.memory.push(
+                [self.state_log[i], self.action_log[i], self.state_log[i + 1], 0.0],
+                result.value - 1
+            )
 
-        self.memory.push([self.state_log[-1], self.action_log[-1], None, reward], result.value-1)
+        self.memory.push(
+            [self.state_log[-1], self.action_log[-1], None, reward],
+            result.value - 1
+        )
 
     def _train_from_replay(self):
-        """ Performs one Gradient Descent step on a batch. """
         self.nn.train()
 
-        samples= self.memory.sample(self.batch_size)
+        samples = self.memory.sample(self.batch_size)
 
-        # FIXES START HERE: Converting list to np.array first suppresses the Performance Warning
-        states_array = [self.board_state_to_nn_input(s[0]) for s in samples]
-        states = torch.stack(states_array)
-        actions = torch.as_tensor(np.array([s[1] for s in samples]),
-                                  dtype=torch.int64, device=self.device)
-        next_states_mask = torch.as_tensor(np.array([s[2] is not None for s in samples]),
-                                           dtype=torch.bool, device=self.device)
-        rewards = torch.as_tensor(np.array([s[3] for s in samples]),
-                                  dtype=torch.float32, device=self.device)
+        # Convert once
+        states = torch.stack([s[0] for s in samples])
 
-        # Current Q Values
+        actions = torch.as_tensor(
+            [s[1] for s in samples],
+            dtype=torch.int64,
+            device=self.device
+        )
+
+        rewards = torch.as_tensor(
+            [s[3] for s in samples],
+            dtype=torch.float32,
+            device=self.device
+        )
+
+        non_final_mask = torch.tensor(
+            [s[2] is not None for s in samples],
+            dtype=torch.bool,
+            device=self.device
+        )
+
+        # Current Q(s,a)
         current_q_values, _ = self.nn(states)
         current_q_values = current_q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # Target Q Values
+        # Target Q values
+        target_q_values = rewards.clone()
+
         with torch.no_grad():
-            target_q_values = rewards.clone()
-            if next_states_mask.any():
-                # Fix: Convert next states list to np.array
-                next_states = torch.stack([self.board_state_to_nn_input(s[2]) for s in samples if s[2] is not None])
-                # Double DQN logic: Main Net selects action, Target Net evaluates it
+            if non_final_mask.any():
+                next_states = torch.stack(
+                    [s[2] for s in samples if s[2] is not None]
+                )
+
+                # Double DQN
                 next_q_main, _ = self.nn(next_states)
-                best_actions = next_q_main.argmax(1, keepdim=True)
+                best_actions = next_q_main.argmax(dim=1, keepdim=True)
 
                 next_q_target, _ = self.target_nn(next_states)
                 max_next_q = next_q_target.gather(1, best_actions).squeeze(1)
 
-                target_q_values[next_states_mask] += self.reward_discount * max_next_q
+                target_q_values[non_final_mask] += self.reward_discount * max_next_q
 
-        # Optimization step
         loss = F.mse_loss(current_q_values, target_q_values)
+
         self.nn.optimizer.zero_grad()
         loss.backward()
         self.nn.optimizer.step()
 
         if self.writer:
-            if self.game_number % 100 == 0:
+            if self.game_number % 500 == 0:
                 self.nn.log_weights(self.writer, self.name, self.game_number)
 
             self.writer.add_scalar(f'{self.name}/Training_Loss', loss.item(), self.game_number)
-            self.writer.add_scalar(f'{self.name}/Random_Move_Probability', self.random_move_prob, self.game_number)
+            self.writer.add_scalar(
+                f'{self.name}/Random_Move_Probability',
+                self.random_move_prob,
+                self.game_number
+            )
