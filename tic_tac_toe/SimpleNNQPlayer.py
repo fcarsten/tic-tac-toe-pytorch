@@ -47,7 +47,8 @@ class QNetwork(nn.Module):
         if writer:
             writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
-        self.log_weights(writer, name, game_number)
+        if self.game_number % 100 == 0:
+            self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()  # Return loss for logging
