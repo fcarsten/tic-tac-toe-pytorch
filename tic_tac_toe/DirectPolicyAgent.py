@@ -41,10 +41,10 @@ class PolicyGradientNetwork(nn.Module):
 
 class DirectPolicyAgent(NNQPlayer):
 
-    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 0.1, learning_rate: float = 0.001,
+    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 0.1, learning_rate: float = 0.0005,
                  win_value: float = 1.0, loss_value: float = 0.0, draw_value: float = 0.5,
                  training: bool = True, random_move_prob: float = 0.9,
-                 beta: float = 0.000001, random_move_decrease: float = 0.9997,
+                 beta: float = 0.000002, random_move_decrease: float = 0.9997,
                  pre_training_games: int = 500, batch_size: int = 60,
                  buffer_size: int = 3000,
                  device: torch.device = torch.device("cpu")):
@@ -176,6 +176,7 @@ class DirectPolicyAgent(NNQPlayer):
 
         total_loss.backward()
 
+        torch.nn.utils.clip_grad_norm_(self.nn.parameters(), max_norm=1.0)
         # Track Gradient Norm before step
         grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in self.nn.parameters()) ** 0.5
 
