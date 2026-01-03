@@ -7,13 +7,13 @@ from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
 class DQNPlayer(ReplayNNQPlayer):
     def __init__(self, name: str = "DQNPlayer", target_update_freq: int = 500, **kwargs):
         super().__init__(name, **kwargs)
+        self._create_target_network()
+        self.target_update_freq = target_update_freq
 
-        # Create a stable target network
+    def _create_target_network(self):
         self.target_nn = copy.deepcopy(self.nn)
         self.target_nn.to(self.device)
         self.target_nn.eval()
-
-        self.target_update_freq = target_update_freq
 
     def _train_from_replay(self):
         batch = self.memory.sample(self.batch_size)
@@ -58,6 +58,3 @@ class DQNPlayer(ReplayNNQPlayer):
         # 5. Corrected Synchronization: Use inherited self.move_step
         if self.move_step % self.target_update_freq == 0:
             self.target_nn.load_state_dict(self.nn.state_dict())
-            if self.writer:
-                # Log that a sync happened
-                self.writer.add_scalar(f'{self.name}/Target_Sync_Event', 1, self.move_step)
