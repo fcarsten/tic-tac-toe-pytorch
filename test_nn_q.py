@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tic_tac_toe.Board import Board
 from tic_tac_toe.DQNPlayer import DQNPlayer
 from tic_tac_toe.DeepExpDoubleDuelQPlayer import DeepExpDoubleDuelQPlayer
+from tic_tac_toe.DirectPolicyAgent import DirectPolicyAgent
 from tic_tac_toe.DoubleDQNPlayer import DoubleDQNPlayer
 from tic_tac_toe.DuelingDoubleDQNPlayer import DuelingDoubleDQNPlayer
 from tic_tac_toe.EGreedyNNQPlayer import EGreedyNNQPlayer
@@ -37,6 +38,8 @@ replayNNQPlayer = ReplayNNQPlayer("ReplayNNQPlayer", device= device)
 double_dqn_player = DoubleDQNPlayer("DoubleDQNPlayer", device= device)
 dueling_double_player = DuelingDoubleDQNPlayer("DuelingDoubleDQNPlayer", device= device)
 deepExpDoubleDuelQPlayer = DeepExpDoubleDuelQPlayer("DeepExpDoubleDuelQPlayer", device= device, draw_value=0.0)
+directPolicyAgent = DirectPolicyAgent("DirectPolicyAgent", device= device)
+
 # nnplayer2 = NNQPlayer("NNQPlayer2", device= device, writer=writer)
 #
 
@@ -55,7 +58,7 @@ num_evaluation_batches = 2
 games_per_evaluation_batch = 100
 
 # nnplayer rndplayer mm_player
-p2 = deepExpDoubleDuelQPlayer
+p2 = directPolicyAgent
 p1 = rnd_mm_player
 
 # Define a descriptive name for the current experiment
