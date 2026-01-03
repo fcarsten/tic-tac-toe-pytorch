@@ -170,22 +170,28 @@ class DirectPolicyAgent(Player):
         train_batch = self.memory.sample(self.batch_size)  #
         if not train_batch: return
 
-        # Since elements are already tensors on the device, we stack them efficiently
+        # Prepare tensors
         states = torch.stack([x[0] for x in train_batch])
-        actions = torch.tensor([x[1] for x in train_batch], device=self.device).unsqueeze(1)
-        rewards = torch.stack([x[2] for x in train_batch])
+        actions = torch.tensor([x[1] for x in train_batch], device=self.device)  # Shape: [batch]
+        rewards = torch.stack([x[2] for x in train_batch])  # Shape: [batch]
 
         self.optimizer.zero_grad()
 
+        # 1. Get raw logits from the model
         logits = self.nn(states)
-        probs = F.softmax(logits, dim=-1)
 
-        # Select probabilities for actions taken
-        responsible_outputs = probs.gather(1, actions).squeeze()
+        # 2. Compute Log-Softmax (Numerically Stable)
+        log_probs = F.log_softmax(logits, dim=-1)
 
-        # Policy loss + L2 regularization
-        policy_loss = -torch.mean(torch.log(responsible_outputs + 1e-9) * rewards)
+        # 3. Use NLLLoss with reduction='none' to get individual log-probabilities
+        # NLLLoss(log_probs, actions) = -log_probs[actions]
+        criterion = nn.NLLLoss(reduction='none')
 
+        # 4. Multiply by rewards (Policy Gradient formula)
+        # Note: criterion already applies the negative sign
+        policy_loss = (criterion(log_probs, actions) * rewards).mean()
+
+        # 5. Add L2 Regularization (Beta * sum of squared weights)
         l2_reg = sum(p.pow(2.0).sum() for p in self.nn.parameters())
         total_loss = policy_loss + (self.beta * l2_reg)
 
