@@ -1,4 +1,3 @@
-import random
 from typing import Tuple
 
 import numpy as np
@@ -7,9 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
+from tic_tac_toe.Board import Board, BOARD_SIZE
+from tic_tac_toe.DQNPlayer import DQNPlayer
 from tic_tac_toe.Player import GameResult
-from tic_tac_toe.ReplayNNQPlayer import ReplayNNQPlayer
+from util import board_state_to_cnn_input
 
 
 class DuelingFusion(nn.Module):
@@ -22,10 +22,11 @@ class DuelingFusion(nn.Module):
         return value + (advantage - advantage.mean(dim=1, keepdim=True))
 
 
-class QNetwork(nn.Module):
+class DeepExpDoubleDuelQPlayerNetwork(nn.Module):
     def __init__(self, learning_rate: float, device: torch.device, beta: float = 0.00001):
-        super(QNetwork, self).__init__()
+        super().__init__()
         self.device = device
+        self.learning_rate = learning_rate
 
         # 1. Group Convolutional Layers
         # This appears as a single "conv_block" node in TensorBoard
@@ -81,12 +82,12 @@ class QNetwork(nn.Module):
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
 
-class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
+class DeepExpDoubleDuelQPlayer(DQNPlayer):
     """
     Tic Tac Toe player based on a Dueling Double Deep Q-Network.
     """
 
-    def __init__(self, name: str, reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
+    def __init__(self, name: str = "DeepExpDoubleDuelQPlayer", reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,
                  loss_value: float = -10.0, learning_rate: float = 0.01, training: bool = True,
                  random_move_prob: float = 0.9999, random_move_decrease: float = 0.9997, random_min_prob: float=0.0,
                  pre_training_games: int = 500, tau: float = 0.001, device: torch.device = torch.device("cpu"),
@@ -96,61 +97,60 @@ class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
                          loss_value=loss_value, learning_rate=learning_rate, training=training, device=device,
                          random_move_prob=random_move_prob, random_move_decrease=random_move_decrease,
                          random_min_prob=random_min_prob, batch_size=batch_size, buffer_size=buffer_size)
-        self.name = name
-        self.device = device
-
         self.tau = tau
-        self.batch_size = batch_size
-
         self.pre_training_games = pre_training_games
 
-        self.writer = None
+    def log_start_state_q(self):
+        """
+        Logs the max Q-value of a generic empty board from a 'First Mover' perspective.
+        This provides a consistent baseline even if the player is currently Naught.
+        """
+        if self.writer and self.training:
+            b = Board()
+            b.reset()
+
+            with torch.no_grad():
+                nn_input_tensor= self.board_state_to_nn_input(b.state)
+
+                q_values = self.nn(nn_input_tensor.unsqueeze(0))[0]
+                max_q = torch.max(q_values).item()
+                # This should trend toward 0.0 as the model realizes the game is a draw
+                self.writer.add_scalar(f'{self.name}/Baseline_Opening_Q', max_q, self.game_number)
 
     def _create_network(self, learning_rate):
-        self.q_net = QNetwork(learning_rate, self.device)
-        self.target_net = QNetwork(learning_rate, self.device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
+        self.nn = DeepExpDoubleDuelQPlayerNetwork(learning_rate, self.device)
 
     def log_graph(self):
         if self.writer:
             # Create a dummy input matching the shape (Batch, 27)
             dummy_input = torch.zeros(1,3,3,3, device=self.device)
-            self.writer.add_graph(self.q_net, dummy_input)
+            self.writer.add_graph(self.nn, dummy_input)
 
-    def board_state_to_nn_input(self, state: np.ndarray) -> np.ndarray:
-        """ Converts state to (Channels, Height, Width) for PyTorch. """
-        res = np.array([(state == self.side).astype(float),
-                        (state == Board.other_side(self.side)).astype(float),
-                        (state == EMPTY).astype(float)])
-        return res.reshape(3, 3, 3)
+    def board_state_to_nn_input(self, state: np.ndarray) -> torch.Tensor:
+        return board_state_to_cnn_input(state, self.device, self.side)
 
     def soft_update(self):
         """ Updates target network using tau factor. """
-        for target_param, main_param in zip(self.target_net.parameters(), self.q_net.parameters()):
+        for target_param, main_param in zip(self.target_nn.parameters(), self.nn.parameters()):
             target_param.data.copy_(self.tau * main_param.data + (1.0 - self.tau) * target_param.data)
-
-    def new_game(self, side: int):
-        """ Resets game logs for a new match. """
-        self.side = side
-        self.state_log = []
-        self.action_log = []
 
     def move(self, board: Board) -> Tuple[GameResult, bool]:
         """ Chooses a move based on epsilon-greedy exploration. """
         self.move_step += 1
-        self.state_log.append(board.state.copy())
+
+        if self.training:
+            self.state_log.append(board.state.copy())
 
         if self.training and (self.game_number < self.pre_training_games or np.random.rand() < self.random_move_prob):
             move = board.random_empty_spot()
         else:
-            self.q_net.eval()
+            self.nn.eval()
             with torch.no_grad():
-                # Fix: Convert to numpy array first for performance
-                nn_input = self.board_state_to_nn_input(board.state)
-                nn_input_tensor = torch.as_tensor(nn_input, dtype=torch.float32, device=self.device).unsqueeze(0)
-                q_values, _ = self.q_net(nn_input_tensor)
+                nn_input_tensor = self.board_state_to_nn_input(board.state)
+                nn_input_tensor_unsqueezed = nn_input_tensor.unsqueeze(0)
+                q_values = self.nn(nn_input_tensor_unsqueezed)[0]
 
-                if self.writer and self.move_step % 100 == 0:
+                if self.training and self.writer and self.move_step % 100 == 0:
                     # self.log_q_heatmap(q_values, self.move_step)
                     self.writer.add_histogram(f'{self.name}/Action_Q_Distribution', q_values, self.move_step)
                     max_q = float(torch.max(q_values).item())
@@ -165,22 +165,25 @@ class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
                 for i in range(BOARD_SIZE):
                     if not board.is_legal(i):
                         q_values[i] = -np.inf
+
                 move = np.argmax(q_values)
 
-        self.action_log.append(move)
+        if self.training:
+            self.action_log.append(move)
+
         _, res, finished = board.move(move, self.side)
         return res, finished
 
     def final_result(self, result: GameResult):
-        """ Handles training at the end of a game. """
-        self.game_number += 1
+        if not self.training: return
 
+        """ Handles training at the end of a game. """
         reward = self.get_reward_value(result)
 
         self.add_game_to_replay_buffer(reward, result)
 
         if self.training and (self.game_number > self.pre_training_games):
-            self.train_step()
+            self._train_from_replay()
             self.random_move_prob *= self.random_move_decrease
             self.soft_update()
 
@@ -193,15 +196,15 @@ class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
 
         self.memory.push([self.state_log[-1], self.action_log[-1], None, reward], result.value-1)
 
-    def train_step(self):
+    def _train_from_replay(self):
         """ Performs one Gradient Descent step on a batch. """
-        self.q_net.train()
+        self.nn.train()
 
         samples= self.memory.sample(self.batch_size)
 
         # FIXES START HERE: Converting list to np.array first suppresses the Performance Warning
-        states = torch.as_tensor(np.array([self.board_state_to_nn_input(s[0]) for s in samples]),
-                                 dtype=torch.float32, device=self.device)
+        states_array = [self.board_state_to_nn_input(s[0]) for s in samples]
+        states = torch.stack(states_array)
         actions = torch.as_tensor(np.array([s[1] for s in samples]),
                                   dtype=torch.int64, device=self.device)
         next_states_mask = torch.as_tensor(np.array([s[2] is not None for s in samples]),
@@ -210,7 +213,7 @@ class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
                                   dtype=torch.float32, device=self.device)
 
         # Current Q Values
-        current_q_values, _ = self.q_net(states)
+        current_q_values, _ = self.nn(states)
         current_q_values = current_q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
         # Target Q Values
@@ -218,28 +221,25 @@ class DeepExpDoubleDuelQPlayer(ReplayNNQPlayer):
             target_q_values = rewards.clone()
             if next_states_mask.any():
                 # Fix: Convert next states list to np.array
-                next_states = torch.as_tensor(np.array([self.board_state_to_nn_input(s[2])
-                                                        for s in samples if s[2] is not None]),
-                                              dtype=torch.float32, device=self.device)
-
+                next_states = torch.stack([self.board_state_to_nn_input(s[2]) for s in samples if s[2] is not None])
                 # Double DQN logic: Main Net selects action, Target Net evaluates it
-                next_q_main, _ = self.q_net(next_states)
+                next_q_main, _ = self.nn(next_states)
                 best_actions = next_q_main.argmax(1, keepdim=True)
 
-                next_q_target, _ = self.target_net(next_states)
+                next_q_target, _ = self.target_nn(next_states)
                 max_next_q = next_q_target.gather(1, best_actions).squeeze(1)
 
                 target_q_values[next_states_mask] += self.reward_discount * max_next_q
 
         # Optimization step
         loss = F.mse_loss(current_q_values, target_q_values)
-        self.q_net.optimizer.zero_grad()
+        self.nn.optimizer.zero_grad()
         loss.backward()
-        self.q_net.optimizer.step()
+        self.nn.optimizer.step()
 
         if self.writer:
             if self.game_number % 100 == 0:
-                self.q_net.log_weights(self.writer, self.name, self.game_number)
+                self.nn.log_weights(self.writer, self.name, self.game_number)
 
             self.writer.add_scalar(f'{self.name}/Training_Loss', loss.item(), self.game_number)
             self.writer.add_scalar(f'{self.name}/Random_Move_Probability', self.random_move_prob, self.game_number)
