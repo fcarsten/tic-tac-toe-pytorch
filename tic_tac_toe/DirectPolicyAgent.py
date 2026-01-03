@@ -1,15 +1,13 @@
-from typing import List, Tuple, Optional
+from typing import Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 
+from tic_tac_toe.Board import Board, BOARD_SIZE, GameResult
 from tic_tac_toe.ReplayMemory import ReplayMemory
-from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, NAUGHT, CROSS, GameResult
-from tic_tac_toe.Player import Player
 from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
 
 
@@ -98,6 +96,8 @@ class DirectPolicyAgent(NNQPlayer):
         return mask / mask.sum()  # Fallback to uniform over legal moves
 
     def move(self, board: Board) -> Tuple[GameResult, bool]:
+        self.move_step += 1
+
         # Convert state to tensor immediately and store it
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
@@ -107,7 +107,12 @@ class DirectPolicyAgent(NNQPlayer):
         else:
             probs = self.get_valid_probs(state_tensor, board)
             if self.training and self.writer and self.move_step % 100 == 0:
-                self.writer.add_histogram(f'{self.name}/Move_prob_Distribution', probs, self.move_step)
+                move_entropy = -torch.sum(probs * torch.log(probs + 1e-9))
+
+                self.writer.add_scalar(f'{self.name}/Move_Entropy', move_entropy, self.move_step)
+                self.writer.add_scalar(f'{self.name}/Move_Confidence', torch.max(probs).item(), self.move_step)
+                if self.move_step % 500 == 0:
+                    self.writer.add_histogram(f'{self.name}/Move_prob_Distribution', probs, self.move_step)
 
             # Sample move on CPU for numpy compatibility in Board class
             move = np.random.choice(9, p=probs.cpu().numpy())
@@ -164,6 +169,10 @@ class DirectPolicyAgent(NNQPlayer):
         total_loss = policy_loss + (self.beta * l2_reg)
 
         total_loss.backward()
+
+        # Track Gradient Norm before step
+        grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in self.nn.parameters()) ** 0.5
+
         self.optimizer.step()
 
         if self.writer:
@@ -172,6 +181,8 @@ class DirectPolicyAgent(NNQPlayer):
 
             self.writer.add_scalar(f'{self.name}/Training_Loss', total_loss.item(), self.game_number)
             self.writer.add_scalar(f'{self.name}/Policy_Loss', policy_loss.item(), self.game_number)
+            self.writer.add_scalar(f'{self.name}/L2_Regularization_Loss', (self.beta * l2_reg).item(), self.game_number)
+            self.writer.add_scalar(f'{self.name}/Gradient_Norm', grad_norm, self.game_number)
             self.writer.add_scalar(
                 f'{self.name}/Random_Move_Probability',
                 self.random_move_prob,
