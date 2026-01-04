@@ -41,7 +41,7 @@ class PolicyGradientNetwork(nn.Module):
 
 class DirectPolicyAgent(NNQPlayer):
 
-    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 0.1, learning_rate: float = 0.001,
+    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 1.0, learning_rate: float = 0.001,
                  win_value: float = 1.0, loss_value: float = 0.0, draw_value: float = 0.5,
                  training: bool = True, random_move_prob: float = 0.9,
                  beta: float = 0.000001, random_move_decrease: float = 0.9997,
