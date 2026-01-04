@@ -7,7 +7,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, GameResult
-from tic_tac_toe.ReplayMemory import ReplayMemory
 from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
 
 
@@ -41,30 +40,23 @@ class PolicyGradientNetwork(nn.Module):
 
 class DirectPolicyAgent(NNQPlayer):
 
-    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 1.0, learning_rate: float = 0.001,
+    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 1.0, learning_rate: float = 0.0005,
                  win_value: float = 1.0, loss_value: float = 0.0, draw_value: float = 0.5,
                  training: bool = True, random_move_prob: float = 0.9,
                  beta: float = 0.000001, random_move_decrease: float = 0.9997,
-                 pre_training_games: int = 500, batch_size: int = 60,
-                 buffer_size: int = 3000,
                  device: torch.device = torch.device("cpu")):
         super().__init__(name, reward_discount, win_value, draw_value, loss_value, learning_rate,
                          training, device)
         self.writer = None
 
         self.training = training
-        self.batch_size = batch_size
         self.beta = beta
         self.random_move_prob = random_move_prob
         self.random_move_decrease = random_move_decrease
-        self.pre_training_games = pre_training_games
-
+        self.running_baseline = 0.5
         # Network setup
 
         self.optimizer = optim.Adam(self.nn.parameters(), lr=learning_rate)
-
-        # Integration with ReplayMemory
-        self.memory = ReplayMemory(buffer_size=buffer_size)
 
     def _create_network(self, learning_rate):
         input_dim = BOARD_SIZE * 3
@@ -102,20 +94,17 @@ class DirectPolicyAgent(NNQPlayer):
         state_tensor = self.board_state_to_nn_input(board.state)
         self.state_log.append(state_tensor)
 
-        if self.training and (self.game_number < self.pre_training_games):
-            move = board.random_empty_spot()  #
-        else:
-            probs = self.get_valid_probs(state_tensor, board)
-            if self.training and self.writer and self.move_step % 100 == 0:
-                move_entropy = -torch.sum(probs * torch.log(probs + 1e-9))
+        probs = self.get_valid_probs(state_tensor, board)
+        if self.training and self.writer and self.move_step % 100 == 0:
+            move_entropy = -torch.sum(probs * torch.log(probs + 1e-9))
 
-                self.writer.add_scalar(f'{self.name}/Move_Entropy', move_entropy, self.move_step)
-                self.writer.add_scalar(f'{self.name}/Move_Confidence', torch.max(probs).item(), self.move_step)
-                if self.move_step % 500 == 0:
-                    self.writer.add_histogram(f'{self.name}/Move_prob_Distribution', probs, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Move_Entropy', move_entropy, self.move_step)
+            self.writer.add_scalar(f'{self.name}/Move_Confidence', torch.max(probs).item(), self.move_step)
+            if self.move_step % 500 == 0:
+                self.writer.add_histogram(f'{self.name}/Move_prob_Distribution', probs, self.move_step)
 
-            # Sample move on CPU for numpy compatibility in Board class
-            move = np.random.choice(9, p=probs.cpu().numpy())
+        # Sample move on CPU for numpy compatibility in Board class
+        move = np.random.choice(9, p=probs.cpu().numpy())
 
         self.action_log.append(move)
         _, res, finished = board.move(move, self.side)  #
@@ -131,28 +120,22 @@ class DirectPolicyAgent(NNQPlayer):
         return torch.tensor(discounted_r, dtype=torch.float32, device=self.device)
 
     def final_result(self, result: GameResult):
-        final_reward = self.get_reward_value(result)
-
-        rewards = self.calculate_rewards(final_reward, len(self.action_log))
-
-        # Push pre-computed tensors to memory
-        for i in range(len(self.action_log)):
-            experience = (self.state_log[i], self.action_log[i], rewards[i])
-            self.memory.push(experience, result.value-1)
-
-        if self.training and (self.game_number > self.pre_training_games):
-            self.train_network()
+        if self.training:
+            self.train_network(result)
             self.random_move_prob *= self.random_move_decrease
 
-    def train_network(self):
-        self.nn.train()
-        train_batch = self.memory.sample(self.batch_size)  #
-        if not train_batch: return
+    def train_network(self, game_result: GameResult):
+        if not self.training: return
 
         # Since elements are already tensors on the device, we stack them efficiently
-        states = torch.stack([x[0] for x in train_batch])
-        actions = torch.tensor([x[1] for x in train_batch], device=self.device).unsqueeze(1)
-        rewards = torch.stack([x[2] for x in train_batch])
+        states = torch.stack(self.state_log)
+        actions = torch.tensor(self.action_log, device=self.device).unsqueeze(1)
+
+        final_reward = self.get_reward_value(game_result)
+        self.running_baseline = 0.99 * self.running_baseline + 0.01 * final_reward
+        advantage = final_reward #- self.running_baseline
+
+        rewards = self.calculate_rewards(advantage, len(self.action_log))
 
         self.optimizer.zero_grad()
 
@@ -180,6 +163,7 @@ class DirectPolicyAgent(NNQPlayer):
                 self.nn.log_weights(self.writer, self.name, self.game_number)
 
             self.writer.add_scalar(f'{self.name}/Training_Loss', total_loss.item(), self.game_number)
+            self.writer.add_scalar(f'{self.name}/Running_Baseline', self.running_baseline, self.game_number)
             self.writer.add_scalar(f'{self.name}/Policy_Loss', policy_loss.item(), self.game_number)
             self.writer.add_scalar(f'{self.name}/L2_Regularization_Loss', (self.beta * l2_reg).item(), self.game_number)
             self.writer.add_scalar(f'{self.name}/Gradient_Norm', grad_norm, self.game_number)
