@@ -40,7 +40,7 @@ class PolicyGradientNetwork(nn.Module):
 
 class DirectPolicyAgent(NNQPlayer):
 
-    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 1.0, learning_rate: float = 0.0005,
+    def __init__(self, name: str = "DirectPolicyAgent", reward_discount: float = 1.0, learning_rate: float = 0.0001,
                  win_value: float = 1.0, loss_value: float = 0.0, draw_value: float = 0.5,
                  training: bool = True, random_move_prob: float = 0.9,
                  beta: float = 0.000001, random_move_decrease: float = 0.9997,
@@ -133,7 +133,7 @@ class DirectPolicyAgent(NNQPlayer):
 
         final_reward = self.get_reward_value(game_result)
         self.running_baseline = 0.99 * self.running_baseline + 0.01 * final_reward
-        advantage = final_reward #- self.running_baseline
+        advantage = final_reward - self.running_baseline
 
         rewards = self.calculate_rewards(advantage, len(self.action_log))
 
