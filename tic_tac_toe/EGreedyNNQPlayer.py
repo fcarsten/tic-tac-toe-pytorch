@@ -73,5 +73,6 @@ class EGreedyNNQPlayer(NNQPlayer):
         self.random_move_prob *= self.random_move_decrease
         if self.random_move_prob < self.random_min_prob:
             self.random_move_prob = self.random_min_prob
-            
-        self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)
+
+        if self.writer:
+            self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)

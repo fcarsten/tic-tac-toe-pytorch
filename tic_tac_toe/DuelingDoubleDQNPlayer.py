@@ -31,8 +31,8 @@ class DuelingQNetwork(nn.Module):
             ('Advantage_Output', nn.Linear(64, 9))
         ]))
 
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.SmoothL1Loss()
+        self.optimizer = optim.SGD(self.parameters(), lr=learning_rate)
+        self.loss_fn = nn.MSELoss()
         self.to(device)
 
     def forward(self, x):
@@ -55,8 +55,8 @@ class DuelingQNetwork(nn.Module):
         loss = self.loss_fn(q_pred, targets)
         loss.backward()
         # Log Loss to TensorBoard
-        if self.writer:
-            self.writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
+        if writer:
+            writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
             if game_number % 100 == 0:
                 self.log_weights(writer, name, game_number)
