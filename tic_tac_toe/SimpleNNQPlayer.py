@@ -22,8 +22,8 @@ class QNetwork(nn.Module):
             ('Output_Layer', nn.Linear(BOARD_SIZE * 3 * 9, BOARD_SIZE))
         ])).to(device)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-        self.loss_fn = nn.SmoothL1Loss()
+        self.optimizer = optim.SGD(self.parameters(), lr=learning_rate)
+        self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
         return self.feature_layer(x)
@@ -38,7 +38,7 @@ class QNetwork(nn.Module):
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
-    def train_batch(self, inputs, targets, writer=None, name = None, game_number=None):
+    def train_batch(self, inputs, targets, writer=None, name = None, game_number=-1):
         self.optimizer.zero_grad()
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
@@ -47,8 +47,8 @@ class QNetwork(nn.Module):
         if writer:
             writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
-        if self.game_number % 100 == 0:
-            self.log_weights(writer, name, game_number)
+            if game_number % 100 == 0:
+                self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()  # Return loss for logging
