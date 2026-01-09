@@ -59,7 +59,7 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
             s = self.state_log[i]
             a = self.action_log[i]
 
-            if i < len(self.state_log):
+            if i < len(self.state_log)-1:
                 s_next = self.state_log[i+1]
                 done = False
             else:
@@ -76,7 +76,8 @@ class ReplayNNQPlayer(EGreedyNNQPlayer):
         if self.random_move_prob < self.random_min_prob:
             self.random_move_prob = self.random_min_prob
 
-        self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)
+        if self.writer:
+            self.writer.add_scalar(f'{self.name}/Random_Move_Prob', self.random_move_prob, self.game_number)
 
 
     def _train_from_replay(self):
