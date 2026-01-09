@@ -15,7 +15,7 @@ LOSS_VALUE = 0.0  # type: float
 
 class TQPlayer(Player):
     """
-    A Tic Tac Toe player, implementing Tabular Q Learning
+    A Tic-tac-toe player, implementing Tabular Q Learning
     """
 
     def __init__(self, alpha=0.9, gamma=0.95, q_init=0.6, name : str = "TabularQPlayer"):

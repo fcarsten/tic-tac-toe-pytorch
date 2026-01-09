@@ -87,7 +87,7 @@ class DeepExpDoubleDuelQPlayerNetwork(nn.Module):
 
 class DeepExpDoubleDuelQPlayer(DQNPlayer):
     """
-    Tic Tac Toe player based on a Dueling Double Deep Q-Network.
+    Tic-tac-toe player based on a Dueling Double Deep Q-Network.
     """
 
     def __init__(self, name: str = "DeepExpDoubleDuelQPlayer", reward_discount: float = 0.99, win_value: float = 10.0, draw_value: float = 0.0,

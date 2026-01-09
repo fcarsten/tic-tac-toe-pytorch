@@ -14,7 +14,7 @@ from tic_tac_toe.SimpleNNQPlayer import NNQPlayer
 
 class EGreedyNNQPlayer(NNQPlayer):
     """
-    Neural network Q-learning Tic Tac Toe player rewritten for PyTorch.
+    Neural network Q-learning Tic-tac-toe player rewritten for PyTorch.
     """
     def __init__(self, name: str = "EGreedyNNQPlayer",
                  random_move_prob: float = 0.95, random_move_decrease: float = 0.995, random_min_prob: float = 0.0, **kwargs):  # Added writer

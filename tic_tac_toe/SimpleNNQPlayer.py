@@ -56,7 +56,7 @@ class QNetwork(nn.Module):
 
 class NNQPlayer(Player):
     """
-    Neural network Q-learning Tic Tac Toe player rewritten for PyTorch.
+    Neural network Q-learning Tic-tac-toe player rewritten for PyTorch.
     """
 
     def board_state_to_nn_input(self, state: np.ndarray) -> torch.Tensor:

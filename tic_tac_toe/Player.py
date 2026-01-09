@@ -8,7 +8,7 @@ from tic_tac_toe.Board import Board, GameResult
 
 class Player(ABC):
     """
-    Abstract class defining the interface we expect any Tic Tac Toe player class to implement.
+    Abstract class defining the interface we expect any Tic-tac-toe player class to implement.
     This will allow us to pit various different implementation against each other
     """
 

@@ -8,13 +8,13 @@ from tic_tac_toe.Player import Player
 
 class RandomPlayer(Player):
     """
-    This player can play a game of Tic Tac Toe by randomly choosing a free spot on the board.
+    This player can play a game of Tic-tac-toe by randomly choosing a free spot on the board.
     It does not learn or get better.
     """
 
     def __init__(self, name : str = "RandomPlayer"):
         """
-        Getting ready for playing tic tac toe.
+        Getting ready for playing Tic-tac-toe.
         """
         self.side = None
         self.name = name

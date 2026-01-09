@@ -22,7 +22,7 @@ class MinMaxAgent(Player):
 
     def __init__(self, name : str = "MinMaxAgent"):
         """
-        Getting ready for playing tic tac toe.
+        Getting ready for playing Tic-tac-toe.
         """
         self.side = None
         self.name = name
