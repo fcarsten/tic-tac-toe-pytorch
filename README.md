@@ -26,7 +26,7 @@ In the following, we will use the example of Tic-tac-toe to look at various appr
 
 We will look at the classic Min Max algorithm, a Tabular Reinforcement Learning approach as well as a couple of Neural Network based Reinforcement Learning approaches:
     
-* [Part 1 - Computer Tic-tac-toe Basics](github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%201%20-%20Computer%20Tic%20Tac%20Toe%20Basics.ipynb)
+* [Part 1 - Computer Tic-tac-toe Basics](https://github.com/fcarsten/tic-tac-toe-pytorch/blob/master/Part%201%20-%20Computer%20Tic%20Tac%20Toe%20Basics.ipynb)
 * [Part 2 - The Min Max Algorithm](./Part%202%20-%20The%20Min%20Max%20Algorithm.ipynb) 
 * [Part 3 - Tabular Q-Learning](./Part%203%20-%20Tabular%20Q-Learning.ipynb)
 * [Part 4 - Neural Network Q-Learning](./Part%204%20-%20Neural%20Network%20Q-Learning.ipynb)
