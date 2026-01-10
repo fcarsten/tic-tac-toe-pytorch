@@ -1,4 +1,4 @@
-# Teaching a computer how to play Tic Tac Toe -  A Trip Report
+# Teaching a computer how to play Tic-tac-toe - A Trip Report
 
 
 
