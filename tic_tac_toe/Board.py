@@ -260,10 +260,22 @@ class Board:
         Format and return the game state as a HTML table
         :return: The game state as a HTML table string
         """
+        td1_str = '\n<td style="border:1px solid black; padding:0; width:2em; height:2em;"> \n<div style="width:100%;\
+ height:100%;\
+ display:flex;\
+ align-items:center;\
+ justify-content:center;">\n{}\n</div>\n</td>'
+        td2_str = '\n</div></td>\n<td style="border:1px solid black; padding:0; width:2em; height:2em;"> \n<div style="width:100%;\
+ height:100%;\
+ display:flex;\
+ align-items:center;\
+ justify-content:center;">'
         data = self.state_to_charlist(True)
-        html = '<table border="1"><tr>{}</tr></table>'.format(
-            '</tr><tr>'.join(
-                '<td>{}</td>'.format('</td><td>'.join(str(_) for _ in row)) for row in data)
+
+
+        html = '<table style="border-collapse: collapse;">\n<tr>{}</tr></table>'.format(
+            '</tr>\n<tr>'.join(
+                td1_str.format(td2_str.join(str(_) for _ in row)) for row in data)
         )
         return html
 

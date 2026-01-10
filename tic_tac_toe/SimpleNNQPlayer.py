@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch import Tensor
+from torch.utils.tensorboard import SummaryWriter
 
 from tic_tac_toe.Board import Board, BOARD_SIZE, EMPTY, CROSS, NAUGHT
 from tic_tac_toe.Player import Player, GameResult
@@ -38,7 +40,7 @@ class QNetwork(nn.Module):
             if param.grad is not None:
                 writer.add_histogram(f'{name}/Gradients/{n}', param.grad, game_number)
 
-    def train_batch(self, inputs, targets, writer=None, name = None, game_number=None):
+    def train_batch(self, inputs : Tensor, targets, writer : SummaryWriter = None, name : str= None, game_number : int =-1):
         self.optimizer.zero_grad()
         q_pred = self.forward(inputs)
         loss = self.loss_fn(q_pred, targets)
@@ -47,8 +49,8 @@ class QNetwork(nn.Module):
         if writer:
             writer.add_scalar(f'{name}/Training_Loss', loss, game_number)
 
-        if self.game_number % 100 == 0:
-            self.log_weights(writer, name, game_number)
+            if self.game_number % 100 == 0:
+                self.log_weights(writer, name, game_number)
 
         self.optimizer.step()
         return loss.item()  # Return loss for logging
@@ -87,7 +89,7 @@ class NNQPlayer(Player):
 
         self._create_network(learning_rate)
 
-    def _create_network(self, learning_rate):
+    def _create_network(self, learning_rate: float):
         self.nn= QNetwork(learning_rate, self.device)
 
     def log_graph(self):
