@@ -1,5 +1,6 @@
 ﻿numpy>=2.2.6
 torch>=2.9.1
-ipython>=9.8.0
+ipython>=8.38.0
 
 matplotlib>=3.10.8
+
