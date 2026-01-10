@@ -25,14 +25,14 @@ In the following, we will use the example of Tic-tac-toe to look at various appr
 
 We will look at the classic Min Max algorithm, a Tabular Reinforcement Learning approach as well as a couple of Neural Network based Reinforcement Learning approaches:
     
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%201%20-%20Computer%20Tic%20Tac%20Toe%20Basics.ipynb" target="_blank" rel="noopener">Part 1 - Computer Tic-tac-toe Basics</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%202%20-%20The%20Min%20Max%20Algorithm.ipynb" target="_blank" rel="noopener">Part 2 - The Min Max Algorithm</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%203%20-%20Tabular%20Q-Learning.ipynb" target="_blank" rel="noopener">Part 3 - Tabular Q-Learning</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%204%20-%20Neural%20Network%20Q-Learning.ipynb" target="_blank" rel="noopener">Part 4 - Neural Network Q-Learning</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%205%20-%20Q%20Network%20review%20and%20becoming%20less%20greedy.ipynb" target="_blank" rel="noopener">Part 5 - Q Network review and becoming less greedy</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%206%20-%20Double%20Duelling%20Q%20Network%20with%20Experience%20Replay.ipynb" target="_blank" rel="noopener">Part 6 - Double Duelling Q Network with Experience Replay</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%207%20-%20This%20is%20deep.%20In%20a%20convoluted%20way.ipynb" target="_blank" rel="noopener">Part 7 - This is deep. In a convoluted way</a>
-* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/master/Part%208%20-%20Tic%20Tac%20Toe%20with%20Policy%20Gradient%C2%A0Descent.ipynb" target="_blank" rel="noopener">Part 8 - Tic-tac-toe with Policy Gradient Descent</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%201%20-%20Computer%20Tic%20Tac%20Toe%20Basics.ipynb" target="_blank" rel="noopener">Part 1 - Computer Tic-tac-toe Basics</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%202%20-%20The%20Min%20Max%20Algorithm.ipynb" target="_blank" rel="noopener">Part 2 - The Min Max Algorithm</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%203%20-%20Tabular%20Q-Learning.ipynb" target="_blank" rel="noopener">Part 3 - Tabular Q-Learning</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%204%20-%20Neural%20Network%20Q-Learning.ipynb" target="_blank" rel="noopener">Part 4 - Neural Network Q-Learning</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%205%20-%20Q%20Network%20review%20and%20becoming%20less%20greedy.ipynb" target="_blank" rel="noopener">Part 5 - Q Network review and becoming less greedy</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%206%20-%20Double%20Duelling%20Q%20Network%20with%20Experience%20Replay.ipynb" target="_blank" rel="noopener">Part 6 - Double Duelling Q Network with Experience Replay</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%207%20-%20This%20is%20deep.%20In%20a%20convoluted%20way.ipynb" target="_blank" rel="noopener">Part 7 - This is deep. In a convoluted way</a>
+* <a href="https://nbviewer.org/github/fcarsten/tic-tac-toe-pytorch/blob/publication-ready/Part%208%20-%20Tic%20Tac%20Toe%20with%20Policy%20Gradient%C2%A0Descent.ipynb" target="_blank" rel="noopener">Part 8 - Tic-tac-toe with Policy Gradient Descent</a>
 
 The source code and Jupyter notebooks for this series are available at [GitHub](https://github.com/fcarsten/tic-tac-toe-pytorch).
 
