@@ -15,7 +15,7 @@ The game is rather simple. With respect to its rules as well as its strategy. In
 
 ![Title](./Images/tic-tac-toe-355090_640.jpg)
 
-[Source](https://pixabay.com/en/tic-tac-toe-game-tick-tack-toe-355090)
+([Image Source](https://pixabay.com/en/tic-tac-toe-game-tick-tack-toe-355090))
 
 If you have played Tic-tac-toe a couple of times you will have quickly realised that it is quite easy to master. You will most likely also have discovered that when both players play good moves, the game will always end in a draw.
 
