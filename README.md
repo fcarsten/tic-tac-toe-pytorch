@@ -37,5 +37,4 @@ We will look at the classic Min Max algorithm, a Tabular Reinforcement Learning 
 The source code and Jupyter notebooks for this series are available at [GitHub](https://github.com/fcarsten/tic-tac-toe-pytorch).
 
 You can also run the notebooks online via [Binder](https://mybinder.org/v2/gh/fcarsten/tic-tac-toe-pytorch/master)
-
-<a href="https://www.flaticon.com/free-icons/tic-tac-toe">Favicon created by Flaticon</a>
+<a href="https://www.flaticon.com/free-icons/noughts-and-crosses" title="noughts and crosses icon">Noughts and crosses icon created by Freepik - Flaticon</a>
