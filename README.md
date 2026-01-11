@@ -1,6 +1,4 @@
-# Teaching a computer how to play Tic-tac-toe - A Trip Report
-
-
+# Training a Neural Network to play Tic-tac-toe - A Trip Report
 
 ## From classic algorithms to Reinforcement learning with Neural Networks
 
