@@ -3,7 +3,7 @@ plugins:
 
 titles_from_headings:
   enabled: true
-  strip_title: true
+  strip_title: false
 
 title: Training a Neural Network to play Tic-tac-toe - A Trip Report
 
